@@ -37,10 +37,15 @@ export const Route = createRootRoute({
         content:
           "Buy and sell second-hand items safely. Every seller has a verified trust score so you know who you're dealing with.",
       },
-      { property: "og:title", content: "TrustMart — Trust-First Marketplace" },
-      { property: "og:description", content: "Second-hand shopping with verified seller trust scores." },
+      { property: "og:title", content: "TrustMart — Second-Hand Marketplace with Trust Score" },
+      { property: "og:description", content: "TrustMart is a secure second-hand marketplace with a focus on user trust and safe transactions." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: "TrustMart — Second-Hand Marketplace with Trust Score" },
+      { name: "description", content: "TrustMart is a secure second-hand marketplace with a focus on user trust and safe transactions." },
+      { name: "twitter:description", content: "TrustMart is a secure second-hand marketplace with a focus on user trust and safe transactions." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9cf70244-fef4-4066-8dbc-03e84c9782a7/id-preview-b3727ca7--6a83ddea-4cc6-4d93-8b82-f0711bd8043d.lovable.app-1776661944061.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9cf70244-fef4-4066-8dbc-03e84c9782a7/id-preview-b3727ca7--6a83ddea-4cc6-4d93-8b82-f0711bd8043d.lovable.app-1776661944061.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
