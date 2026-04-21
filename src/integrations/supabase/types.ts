@@ -154,6 +154,7 @@ export type Database = {
           created_at: string
           email: string
           id: string
+          is_admin: boolean
           name: string
           phone: string | null
           report_count: number
@@ -164,6 +165,7 @@ export type Database = {
           created_at?: string
           email: string
           id: string
+          is_admin?: boolean
           name: string
           phone?: string | null
           report_count?: number
@@ -174,6 +176,7 @@ export type Database = {
           created_at?: string
           email?: string
           id?: string
+          is_admin?: boolean
           name?: string
           phone?: string | null
           report_count?: number
@@ -181,6 +184,58 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      comments: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          listing_id: string
+          parent_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          listing_id: string
+          parent_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          listing_id?: string
+          parent_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reports: {
         Row: {

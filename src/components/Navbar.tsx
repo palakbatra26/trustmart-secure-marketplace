@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { Search, Plus, User, ShoppingCart, LogOut, ShieldCheck } from "lucide-react";
+import { Search, Plus, User, ShoppingCart, LogOut, ShieldCheck, LayoutDashboard } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -81,6 +81,14 @@ export function Navbar() {
                 <DropdownMenuItem onClick={() => navigate({ to: "/cart" })}>
                   <ShoppingCart size={16} className="mr-2" /> My Cart
                 </DropdownMenuItem>
+                {profile?.trust_score === 100 && profile.report_count === 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => navigate({ to: "/admin" })}>
+                      <LayoutDashboard size={16} className="mr-2" /> Admin Dashboard
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={async () => {

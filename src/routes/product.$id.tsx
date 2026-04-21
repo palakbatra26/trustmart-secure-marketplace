@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   Star,
   CheckCircle2,
+  Send,
 } from "lucide-react";
 import {
   Dialog,
@@ -56,6 +57,13 @@ type Review = {
   reviewer: { name: string } | null;
 };
 
+type Comment = {
+  id: string;
+  content: string;
+  created_at: string;
+  user: { id: string; name: string } | null;
+};
+
 export const Route = createFileRoute("/product/$id")({
   component: ProductDetailPage,
 });
@@ -67,6 +75,9 @@ function ProductDetailPage() {
 
   const [listing, setListing] = useState<Listing | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [newComment, setNewComment] = useState("");
+  const [loadingComments, setLoadingComments] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -98,7 +109,46 @@ function ProductDetailPage() {
 
   useEffect(() => {
     void load();
+    void loadComments();
   }, [load]);
+
+  const loadComments = async () => {
+    setLoadingComments(true);
+    const { data } = await supabase
+      .from("comments")
+      .select("id, content, created_at, user:profiles!comments_user_id_fkey(id, name)")
+      .eq("listing_id", id)
+      .order("created_at", { ascending: false });
+    setComments((data ?? []) as unknown as Comment[]);
+    setLoadingComments(false);
+  };
+
+  const submitComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !newComment.trim()) return;
+    const { error } = await supabase.from("comments").insert({
+      listing_id: id,
+      user_id: user.id,
+      content: newComment.trim(),
+    });
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Comment added");
+      setNewComment("");
+      void loadComments();
+    }
+  };
+
+  const deleteComment = async (commentId: string) => {
+    if (!confirm("Delete this comment?")) return;
+    const { error } = await supabase.from("comments").delete().eq("id", commentId);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Comment deleted");
+      void loadComments();
+    }
+  };
 
   if (loading) {
     return (
@@ -243,6 +293,68 @@ function ProductDetailPage() {
               <div className="mt-4">
                 <ReviewForm sellerId={listing.seller.id} onDone={load} />
               </div>
+            )}
+          </div>
+
+          {/* Comments Section */}
+          <div className="mt-5 rounded-2xl bg-surface p-5 ring-1 ring-border sm:p-6">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <MessageCircle size={20} />
+              Comments ({comments.length})
+            </h2>
+
+            {/* Add comment form */}
+            {user && (
+              <form onSubmit={submitComment} className="mt-4 flex gap-2">
+                <Textarea
+                  className="flex-1"
+                  rows={2}
+                  placeholder="Ask a question or leave a comment..."
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  maxLength={500}
+                />
+                <Button type="submit" className="self-end" disabled={!newComment.trim()}>
+                  <Send size={16} />
+                </Button>
+              </form>
+            )}
+
+            {/* Comments list */}
+            {loadingComments ? (
+              <div className="mt-4 text-center text-muted-foreground">
+                <Loader2 className="animate-spin" />
+              </div>
+            ) : comments.length === 0 ? (
+              <p className="mt-4 text-sm text-muted-foreground">
+                No comments yet. Be the first to ask!
+              </p>
+            ) : (
+              <ul className="mt-4 space-y-3">
+                {comments.map((c) => (
+                  <li key={c.id} className="rounded-lg border border-border p-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="font-semibold text-sm">
+                          {c.user?.name ?? "Anonymous"}
+                        </span>
+                        <p className="mt-1 text-foreground/85">{c.content}</p>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {new Date(c.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {user?.id === c.user?.id && (
+                        <button
+                          onClick={() => deleteComment(c.id)}
+                          className="rounded p-1 text-trust-low hover:bg-trust-low/10"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         </div>
