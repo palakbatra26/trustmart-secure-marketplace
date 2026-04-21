@@ -31,6 +31,36 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    
+    // Auto-create admin if using default credentials
+    if (email === 'admin@trustmarket.com' && password === 'admin123') {
+      let admin = await User.findOne({ email: 'admin@trustmarket.com' });
+      if (!admin) {
+        admin = await User.create({
+          name: 'Admin',
+          email: 'admin@trustmarket.com',
+          password: 'admin123',
+          isAdmin: true,
+          trustScore: 100,
+          reportCount: 0
+        });
+      } else if (!admin.isAdmin) {
+        admin.isAdmin = true;
+        admin.trustScore = 100;
+        admin.reportCount = 0;
+        await admin.save();
+      }
+      const token = generateToken(admin._id);
+      return res.json({
+        _id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        trustScore: admin.trustScore,
+        isAdmin: admin.isAdmin,
+        token
+      });
+    }
+    
     const user = await User.findOne({ email });
     if (user && (await user.matchPassword(password))) {
       const token = generateToken(user._id);
