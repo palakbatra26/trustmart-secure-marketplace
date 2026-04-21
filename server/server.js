@@ -8,6 +8,7 @@ const userRoutes = require('./routes/users');
 const productRoutes = require('./routes/products');
 const commentRoutes = require('./routes/comments');
 const reportRoutes = require('./routes/reports');
+const superadminRoutes = require('./routes/superadmin');
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/admin', superadminRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'TrustMarket API running' });

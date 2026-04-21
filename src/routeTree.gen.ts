@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SuperadminRouteImport } from './routes/superadmin'
 import { Route as SellRouteImport } from './routes/sell'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as LoginRouteImport } from './routes/login'
@@ -19,6 +20,11 @@ import { Route as UserIdRouteImport } from './routes/user.$id'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
 import { Route as EditIdRouteImport } from './routes/edit.$id'
 
+const SuperadminRoute = SuperadminRouteImport.update({
+  id: '/superadmin',
+  path: '/superadmin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SellRoute = SellRouteImport.update({
   id: '/sell',
   path: '/sell',
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/sell': typeof SellRoute
+  '/superadmin': typeof SuperadminRoute
   '/edit/$id': typeof EditIdRoute
   '/product/$id': typeof ProductIdRoute
   '/user/$id': typeof UserIdRoute
@@ -83,6 +90,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/sell': typeof SellRoute
+  '/superadmin': typeof SuperadminRoute
   '/edit/$id': typeof EditIdRoute
   '/product/$id': typeof ProductIdRoute
   '/user/$id': typeof UserIdRoute
@@ -95,6 +103,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/sell': typeof SellRoute
+  '/superadmin': typeof SuperadminRoute
   '/edit/$id': typeof EditIdRoute
   '/product/$id': typeof ProductIdRoute
   '/user/$id': typeof UserIdRoute
@@ -108,6 +117,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/sell'
+    | '/superadmin'
     | '/edit/$id'
     | '/product/$id'
     | '/user/$id'
@@ -119,6 +129,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/sell'
+    | '/superadmin'
     | '/edit/$id'
     | '/product/$id'
     | '/user/$id'
@@ -130,6 +141,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/sell'
+    | '/superadmin'
     | '/edit/$id'
     | '/product/$id'
     | '/user/$id'
@@ -142,6 +154,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ProfileRoute: typeof ProfileRoute
   SellRoute: typeof SellRoute
+  SuperadminRoute: typeof SuperadminRoute
   EditIdRoute: typeof EditIdRoute
   ProductIdRoute: typeof ProductIdRoute
   UserIdRoute: typeof UserIdRoute
@@ -149,6 +162,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/superadmin': {
+      id: '/superadmin'
+      path: '/superadmin'
+      fullPath: '/superadmin'
+      preLoaderRoute: typeof SuperadminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sell': {
       id: '/sell'
       path: '/sell'
@@ -222,6 +242,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ProfileRoute: ProfileRoute,
   SellRoute: SellRoute,
+  SuperadminRoute: SuperadminRoute,
   EditIdRoute: EditIdRoute,
   ProductIdRoute: ProductIdRoute,
   UserIdRoute: UserIdRoute,
