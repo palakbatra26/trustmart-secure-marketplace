@@ -157,6 +157,8 @@ export type Database = {
           is_admin: boolean
           name: string
           phone: string | null
+          profile_image: string | null
+          bio: string | null
           report_count: number
           trust_score: number
           updated_at: string
@@ -168,6 +170,8 @@ export type Database = {
           is_admin?: boolean
           name: string
           phone?: string | null
+          profile_image?: string | null
+          bio?: string | null
           report_count?: number
           trust_score?: number
           updated_at?: string
@@ -179,6 +183,8 @@ export type Database = {
           is_admin?: boolean
           name?: string
           phone?: string | null
+          profile_image?: string | null
+          bio?: string | null
           report_count?: number
           trust_score?: number
           updated_at?: string

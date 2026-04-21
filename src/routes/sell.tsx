@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
+import { productsAPI } from "@/lib/mongodb";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,14 +26,6 @@ const SUGGESTED_IMAGES = [
   "https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=900&q=80",
 ];
 
-const schema = z.object({
-  title: z.string().trim().min(3, "Title too short").max(120),
-  description: z.string().trim().min(10, "Description too short").max(2000),
-  price: z.coerce.number().min(0, "Price cannot be negative").max(100000000),
-  category: z.string().min(1, "Pick a category"),
-  image_url: z.string().url("Provide an image URL"),
-});
-
 export const Route = createFileRoute("/sell")({
   component: SellPage,
 });
@@ -48,7 +39,7 @@ function SellPage() {
     description: "",
     price: "",
     category: "",
-    image_url: "",
+    imageUrl: "",
   });
 
   useEffect(() => {
@@ -61,31 +52,39 @@ function SellPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    const parsed = schema.safeParse(form);
-    if (!parsed.success) {
-      toast.error(parsed.error.issues[0].message);
+    if (!form.title || form.title.length < 3) {
+      toast.error("Title too short");
+      return;
+    }
+    if (!form.description || form.description.length < 10) {
+      toast.error("Description too short");
+      return;
+    }
+    const price = parseFloat(form.price);
+    if (isNaN(price) || price < 0) {
+      toast.error("Invalid price");
+      return;
+    }
+    if (!form.category) {
+      toast.error("Pick a category");
       return;
     }
     setSubmitting(true);
-    const { data, error } = await supabase
-      .from("listings")
-      .insert({
-        seller_id: user.id,
-        title: parsed.data.title,
-        description: parsed.data.description,
-        price: parsed.data.price,
-        category: parsed.data.category,
-        image_url: parsed.data.image_url,
-      })
-      .select("id")
-      .single();
-    setSubmitting(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      const res = await productsAPI.createProduct({
+        title: form.title,
+        description: form.description,
+        price: price,
+        category: form.category,
+        images: form.imageUrl ? [form.imageUrl] : []
+      });
+      toast.success("Listing published!");
+      void navigate({ to: "/product/$id", params: { id: res.data._id } });
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to create listing");
+    } finally {
+      setSubmitting(false);
     }
-    toast.success("Listing published!");
-    void navigate({ to: "/product/$id", params: { id: data.id } });
   };
 
   return (
@@ -154,16 +153,15 @@ function SellPage() {
         </div>
 
         <div>
-          <Label htmlFor="image_url" className="flex items-center gap-1.5">
+          <Label htmlFor="imageUrl" className="flex items-center gap-1.5">
             <ImageIcon size={14} /> Image URL (paste any photo URL — try Unsplash)
           </Label>
           <Input
-            id="image_url"
+            id="imageUrl"
             type="url"
-            required
             placeholder="https://images.unsplash.com/..."
-            value={form.image_url}
-            onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+            value={form.imageUrl}
+            onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
           />
 
           <p className="mt-3 text-xs font-medium text-muted-foreground">Or pick a sample:</p>
@@ -172,9 +170,9 @@ function SellPage() {
               <button
                 type="button"
                 key={url}
-                onClick={() => setForm({ ...form, image_url: url })}
+                onClick={() => setForm({ ...form, imageUrl: url })}
                 className={`overflow-hidden rounded-lg ring-2 transition ${
-                  form.image_url === url ? "ring-accent" : "ring-transparent hover:ring-border"
+                  form.imageUrl === url ? "ring-accent" : "ring-transparent hover:ring-border"
                 }`}
               >
                 <img src={url} alt="" className="aspect-square w-full object-cover" loading="lazy" />

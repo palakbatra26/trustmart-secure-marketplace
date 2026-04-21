@@ -1,84 +1,91 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { authAPI } from "./mongodb";
 
 export type Profile = {
   id: string;
   name: string;
   email: string;
-  phone: string | null;
-  trust_score: number;
-  report_count: number;
+  phone?: string;
+  profileImage?: string;
+  bio?: string;
+  trustScore: number;
+  reportCount: number;
+  isAdmin: boolean;
+};
+
+type User = {
+  id: string;
+  email: string;
 };
 
 type AuthContextValue = {
   user: User | null;
-  session: Session | null;
   profile: Profile | null;
   loading: boolean;
   refreshProfile: () => Promise<void>;
-  signOut: () => Promise<void>;
+  signOut: () => void;
+  login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-async function fetchProfile(userId: string): Promise<Profile | null> {
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, name, email, phone, trust_score, report_count")
-    .eq("id", userId)
-    .maybeSingle();
-  return (data as Profile) ?? null;
+async function fetchProfile(): Promise<Profile | null> {
+  try {
+    const res = await authAPI.getMe();
+    return res.data;
+  } catch {
+    return null;
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Subscribe FIRST
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
-      if (newSession?.user) {
-        // Defer to avoid deadlock
-        setTimeout(() => {
-          void fetchProfile(newSession.user.id).then(setProfile);
-        }, 0);
-      } else {
-        setProfile(null);
-      }
-    });
-
-    // 2. Then check existing session
-    void supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      if (data.session?.user) {
-        void fetchProfile(data.session.user.id).then((p) => {
-          setProfile(p);
-          setLoading(false);
-        });
-      } else {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetchProfile().then(p => {
+        setProfile(p);
+        setUser(p ? { id: p.id, email: p.email } : null);
         setLoading(false);
-      }
-    });
-
-    return () => sub.subscription.unsubscribe();
+      });
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   const refreshProfile = async () => {
-    if (user) setProfile(await fetchProfile(user.id));
+    try {
+      const p = await fetchProfile();
+      setProfile(p);
+    } catch {}
   };
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
+  const signOut = () => {
+    localStorage.removeItem('token');
+    setUser(null);
+    setProfile(null);
+  };
+
+  const login = async (email: string, password: string) => {
+    const res = await authAPI.login({ email, password });
+    localStorage.setItem('token', res.data.token);
+    setUser({ id: res.data._id, email: res.data.email });
+    setProfile(res.data);
+  };
+
+  const register = async (name: string, email: string, password: string) => {
+    const res = await authAPI.register({ name, email, password });
+    localStorage.setItem('token', res.data.token);
+    setUser({ id: res.data._id, email: res.data.email });
+    setProfile(res.data);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, refreshProfile, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, refreshProfile, signOut, login, register }}>
       {children}
     </AuthContext.Provider>
   );

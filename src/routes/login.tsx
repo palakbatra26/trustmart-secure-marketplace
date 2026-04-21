@@ -1,7 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,25 +11,8 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
-const signupSchema = z.object({
-  name: z.string().trim().min(2, "Name is too short").max(80),
-  email: z.string().trim().email("Invalid email").max(255),
-  phone: z
-    .string()
-    .trim()
-    .regex(/^[0-9+\-\s()]{7,20}$/, "Invalid phone number")
-    .optional()
-    .or(z.literal("")),
-  password: z.string().min(6, "Password must be at least 6 characters").max(72),
-});
-
-const loginSchema = z.object({
-  email: z.string().trim().email("Invalid email"),
-  password: z.string().min(1, "Password required"),
-});
-
 function LoginPage() {
-  const { user } = useAuth();
+  const { user, login, register } = useAuth();
   const navigate = useNavigate();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [loading, setLoading] = useState(false);
@@ -46,42 +27,32 @@ function LoginPage() {
     setLoading(true);
     try {
       if (mode === "signup") {
-        const parsed = signupSchema.safeParse(form);
-        if (!parsed.success) {
-          toast.error(parsed.error.issues[0].message);
+        if (!form.name || form.name.length < 2) {
+          toast.error("Name is too short");
           return;
         }
-        const { error } = await supabase.auth.signUp({
-          email: parsed.data.email,
-          password: parsed.data.password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-            data: {
-              name: parsed.data.name,
-              phone: parsed.data.phone || null,
-            },
-          },
-        });
-        if (error) {
-          toast.error(error.message);
+        if (!form.email || !form.email.includes("@")) {
+          toast.error("Invalid email");
           return;
         }
+        if (!form.password || form.password.length < 6) {
+          toast.error("Password must be at least 6 characters");
+          return;
+        }
+        await register(form.name, form.email, form.password);
         toast.success("Welcome to TrustMart!");
         void navigate({ to: "/" });
       } else {
-        const parsed = loginSchema.safeParse(form);
-        if (!parsed.success) {
-          toast.error(parsed.error.issues[0].message);
+        if (!form.email || !form.password) {
+          toast.error("Email and password required");
           return;
         }
-        const { error } = await supabase.auth.signInWithPassword(parsed.data);
-        if (error) {
-          toast.error(error.message);
-          return;
-        }
+        await login(form.email, form.password);
         toast.success("Welcome back!");
         void navigate({ to: "/" });
       }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Authentication failed");
     } finally {
       setLoading(false);
     }
@@ -136,7 +107,6 @@ function LoginPage() {
               required
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              maxLength={255}
             />
           </div>
           <div>
@@ -148,45 +118,24 @@ function LoginPage() {
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               minLength={6}
-              maxLength={72}
             />
           </div>
-
-          <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90">
-            {loading && <Loader2 size={16} className="mr-2 animate-spin" />}
-            {mode === "login" ? "Sign in" : "Create account"}
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? <Loader2 className="animate-spin" /> : mode === "login" ? "Sign in" : "Create account"}
           </Button>
         </form>
 
-        <div className="mt-5 text-center text-sm text-muted-foreground">
-          {mode === "login" ? (
-            <>
-              No account?{" "}
-              <button
-                type="button"
-                onClick={() => setMode("signup")}
-                className="font-semibold text-primary hover:underline"
-              >
-                Sign up
-              </button>
-            </>
-          ) : (
-            <>
-              Already a member?{" "}
-              <button
-                type="button"
-                onClick={() => setMode("login")}
-                className="font-semibold text-primary hover:underline"
-              >
-                Log in
-              </button>
-            </>
-          )}
-        </div>
-        <div className="mt-3 text-center text-xs text-muted-foreground">
-          <Link to="/" className="hover:underline">
-            ← Back to home
-          </Link>
+        <div className="mt-6 text-center text-sm">
+          <span className="text-muted-foreground">
+            {mode === "login" ? "No account yet?" : "Already have an account?"}
+          </span>{" "}
+          <button
+            type="button"
+            onClick={() => setMode(mode === "login" ? "signup" : "login")}
+            className="font-semibold text-primary hover:underline"
+          >
+            {mode === "login" ? "Sign up" : "Sign in"}
+          </button>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
+import { productsAPI } from "@/lib/mongodb";
 import { ListingCard, type ListingCardData } from "@/components/ListingCard";
 import { CATEGORIES } from "@/lib/trust";
 import { Loader2, ShieldCheck, Sparkles } from "lucide-react";
@@ -27,23 +27,17 @@ function HomePage() {
     setLoading(true);
 
     (async () => {
-      let query = supabase
-        .from("listings")
-        .select(
-          "id, title, price, category, image_url, status, seller:profiles!listings_seller_id_fkey(id, name, trust_score)",
-        )
-        .order("created_at", { ascending: false });
-
-      if (category) query = query.eq("category", category);
-      if (q) query = query.ilike("title", `%${q}%`);
-
-      const { data, error } = await query;
-      if (cancelled) return;
-      if (error) {
+      try {
+        const params: any = {};
+        if (category && category !== 'All') params.category = category;
+        if (q) params.search = q;
+        
+        const res = await productsAPI.getProducts(params);
+        if (cancelled) return;
+        setListings(res.data.products || []);
+      } catch (error) {
         console.error(error);
         setListings([]);
-      } else {
-        setListings((data ?? []) as unknown as ListingCardData[]);
       }
       setLoading(false);
     })();
