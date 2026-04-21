@@ -19,7 +19,7 @@ export function TrustBadge({ score, size = "sm", showLabel = true, className }: 
     md: "text-sm px-2.5 py-1 gap-1.5",
     lg: "text-base px-3 py-1.5 gap-2",
   };
-  const iconSize = size === "lg" ? 16 : size === "md" ? 14 : 12;
+  const iconSize = size === "lg" ? 16 : size ===9 "md" ? 14 : 12;
 
   return (
     <span
