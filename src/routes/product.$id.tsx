@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { productsAPI, commentsAPI, reviewsAPI, reportsAPI } from "@/lib/mongodb";
 import { useAuth } from "@/lib/auth";
 import { TrustBadge } from "@/components/TrustBadge";
 import { Button } from "@/components/ui/button";
@@ -38,30 +38,35 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
 type Listing = {
-  id: string;
+  _id: string;
   title: string;
   description: string;
   price: number;
   category: string;
-  image_url: string;
+  images: string[];
+  imageUrl: string;
+  sellerName: string;
+  sellerAddress: string;
+  sellerContact: string;
+  sellerWhatsApp: string;
   status: "active" | "sold" | "removed";
-  created_at: string;
-  seller: { id: string; name: string; phone: string | null; trust_score: number; report_count: number } | null;
+  createdAt: string;
+  seller: { _id: string; name: string; phone: string | null; trustScore: number; reportCount: number; email: string } | null;
 };
 
 type Review = {
-  id: string;
+  _id: string;
   rating: number;
   feedback: string | null;
-  created_at: string;
+  createdAt: string;
   reviewer: { name: string } | null;
 };
 
 type Comment = {
-  id: string;
+  _id: string;
   content: string;
-  created_at: string;
-  user: { id: string; name: string } | null;
+  createdAt: string;
+  user: { _id: string; name: string } | null;
 };
 
 export const Route = createFileRoute("/product/$id")({
@@ -82,27 +87,18 @@ function ProductDetailPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("listings")
-      .select(
-        "id, title, description, price, category, image_url, status, created_at, seller:profiles!listings_seller_id_fkey(id, name, phone, trust_score, report_count)",
-      )
-      .eq("id", id)
-      .maybeSingle();
-    if (error || !data) {
-      setListing(null);
-    } else {
+    try {
+      const res = await productsAPI.getProduct(id);
+      const data = res.data;
       setListing(data as unknown as Listing);
-      const sellerId = (data as unknown as Listing).seller?.id;
-      if (sellerId) {
-        const { data: rev } = await supabase
-          .from("reviews")
-          .select("id, rating, feedback, created_at, reviewer:profiles!reviews_reviewer_id_fkey(name)")
-          .eq("seller_id", sellerId)
-          .order("created_at", { ascending: false })
-          .limit(10);
-        setReviews((rev ?? []) as unknown as Review[]);
+      
+      if (data.seller?._id) {
+        const revRes = await reviewsAPI.getReviews(data.seller._id);
+        setReviews(revRes.data);
       }
+    } catch (error) {
+      console.error(error);
+      setListing(null);
     }
     setLoading(false);
   }, [id]);
@@ -114,39 +110,39 @@ function ProductDetailPage() {
 
   const loadComments = async () => {
     setLoadingComments(true);
-    const { data } = await supabase
-      .from("comments")
-      .select("id, content, created_at, user:profiles!comments_user_id_fkey(id, name)")
-      .eq("listing_id", id)
-      .order("created_at", { ascending: false });
-    setComments((data ?? []) as unknown as Comment[]);
+    try {
+      const res = await commentsAPI.getComments(id);
+      setComments(res.data);
+    } catch (error) {
+      console.error(error);
+    }
     setLoadingComments(false);
   };
 
   const submitComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newComment.trim()) return;
-    const { error } = await supabase.from("comments").insert({
-      listing_id: id,
-      user_id: user.id,
-      content: newComment.trim(),
-    });
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      await commentsAPI.createComment({
+        productId: id,
+        content: newComment.trim()
+      });
       toast.success("Comment added");
       setNewComment("");
       void loadComments();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to add comment");
     }
   };
 
   const deleteComment = async (commentId: string) => {
     if (!confirm("Delete this comment?")) return;
-    const { error } = await supabase.from("comments").delete().eq("id", commentId);
-    if (error) toast.error(error.message);
-    else {
+    try {
+      await commentsAPI.deleteComment(commentId);
       toast.success("Comment deleted");
       void loadComments();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to delete comment");
     }
   };
 
@@ -169,73 +165,39 @@ function ProductDetailPage() {
     );
   }
 
-  const isOwner = user?.id === listing.seller.id;
-  const suspicious = isSuspicious(listing.seller.trust_score);
+  const isOwner = user?.id === listing.seller?._id;
+  const suspicious = listing.seller ? isSuspicious(listing.seller.trustScore) : false;
 
-  const onWhatsApp = async () => {
-    if (!user) {
-      toast.info("Log in to contact the seller");
-      void navigate({ to: "/login" });
-      return;
-    }
-    if (isOwner) {
-      toast.error("You can't buy your own listing");
-      return;
-    }
-    // Create a pending deal so the buyer can mark it complete later
-    await supabase
-      .from("deals")
-      .upsert(
-        {
-          listing_id: listing.id,
-          buyer_id: user.id,
-          seller_id: listing.seller!.id,
-        },
-        { onConflict: "listing_id,buyer_id" },
-      );
-    window.open(whatsappLink(listing.title, listing.price), "_blank", "noopener");
+  const onWhatsApp = () => {
+    if (!listing) return;
+    window.open(whatsappLink(listing.title, listing.sellerWhatsApp || listing.sellerContact), "_blank", "noopener");
   };
 
-  const addToCart = async () => {
-    if (!user) {
-      void navigate({ to: "/login" });
-      return;
-    }
-    if (isOwner) {
-      toast.error("You can't add your own listing to cart");
-      return;
-    }
-    const { error } = await supabase.from("cart_items").insert({
-      user_id: user.id,
-      listing_id: listing.id,
-    });
-    if (error) {
-      if (error.code === "23505") toast.info("Already in your cart");
-      else toast.error(error.message);
-    } else {
-      toast.success("Added to cart");
-    }
+  const onCall = () => {
+    if (!listing) return;
+    window.location.href = `tel:${listing.sellerContact}`;
   };
 
   const deleteListing = async () => {
     if (!confirm("Delete this listing?")) return;
-    const { error } = await supabase.from("listings").delete().eq("id", listing.id);
-    if (error) toast.error(error.message);
-    else {
+    try {
+      await productsAPI.deleteProduct(listing._id);
       toast.success("Listing deleted");
       void navigate({ to: "/" });
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to delete listing");
     }
   };
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-      {suspicious && (
+      {suspicious && listing.seller && (
         <div className="mb-4 flex items-start gap-3 rounded-xl border border-trust-low/40 bg-trust-low/10 p-3 text-sm text-trust-low">
           <AlertTriangle size={18} className="mt-0.5 shrink-0" />
           <div>
             <p className="font-bold">Suspicious user warning</p>
             <p className="text-trust-low/80">
-              This seller has a low trust score ({listing.seller.trust_score}). Proceed with extra
+              This seller has a low trust score ({listing.seller.trustScore}). Proceed with extra
               caution.
             </p>
           </div>
@@ -247,7 +209,7 @@ function ProductDetailPage() {
         <div className="lg:col-span-2">
           <div className="overflow-hidden rounded-2xl bg-surface ring-1 ring-border">
             <img
-              src={listing.image_url}
+              src={listing.imageUrl || listing.images?.[0] || "/placeholder.svg"}
               alt={listing.title}
               className="aspect-[4/3] w-full object-cover"
             />
@@ -259,6 +221,19 @@ function ProductDetailPage() {
             </span>
             <h1 className="mt-1 text-2xl font-extrabold text-primary sm:text-3xl">{listing.title}</h1>
             <p className="mt-2 text-3xl font-bold text-foreground">{formatPrice(listing.price)}</p>
+            
+            <div className="mt-6 flex flex-col gap-4 border-y py-4">
+              <div className="flex items-start gap-2">
+                <div className="mt-1 rounded-full bg-primary/10 p-1 text-primary">
+                  <Flag size={14} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Selling Location</p>
+                  <p className="text-sm font-medium">{listing.sellerAddress}</p>
+                </div>
+              </div>
+            </div>
+
             <div className="mt-4 whitespace-pre-wrap text-foreground/85">{listing.description}</div>
           </div>
 
@@ -270,7 +245,7 @@ function ProductDetailPage() {
             ) : (
               <ul className="mt-3 space-y-3">
                 {reviews.map((r) => (
-                  <li key={r.id} className="rounded-lg border border-border p-3">
+                  <li key={r._id} className="rounded-lg border border-border p-3">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold">{r.reviewer?.name ?? "Anonymous"}</span>
                       <span className="flex items-center gap-0.5 text-trust-mid">
@@ -289,9 +264,9 @@ function ProductDetailPage() {
               </ul>
             )}
 
-            {user && !isOwner && profile && (
+            {user && !isOwner && listing.seller && (
               <div className="mt-4">
-                <ReviewForm sellerId={listing.seller.id} onDone={load} />
+                <ReviewForm sellerId={listing.seller._id} onDone={load} />
               </div>
             )}
           </div>
@@ -332,7 +307,7 @@ function ProductDetailPage() {
             ) : (
               <ul className="mt-4 space-y-3">
                 {comments.map((c) => (
-                  <li key={c.id} className="rounded-lg border border-border p-3">
+                  <li key={c._id} className="rounded-lg border border-border p-3">
                     <div className="flex items-start justify-between">
                       <div>
                         <span className="font-semibold text-sm">
@@ -340,12 +315,12 @@ function ProductDetailPage() {
                         </span>
                         <p className="mt-1 text-foreground/85">{c.content}</p>
                         <span className="mt-1 block text-xs text-muted-foreground">
-                          {new Date(c.created_at).toLocaleDateString()}
+                          {new Date(c.createdAt).toLocaleDateString()}
                         </span>
                       </div>
-                      {user?.id === c.user?.id && (
+                      {user?.id === c.user?._id && (
                         <button
-                          onClick={() => deleteComment(c.id)}
+                          onClick={() => deleteComment(c._id)}
                           className="rounded p-1 text-trust-low hover:bg-trust-low/10"
                         >
                           <Trash2 size={14} />
@@ -363,41 +338,42 @@ function ProductDetailPage() {
         <aside className="space-y-4">
           <div className="rounded-2xl bg-surface p-5 ring-1 ring-border">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Seller
+              Seller Information
             </h3>
-            <Link
-              to="/user/$id"
-              params={{ id: listing.seller.id }}
-              className="mt-2 flex items-center gap-3 group"
-            >
+            <div className="mt-3 flex items-center gap-3">
               <span className="grid h-12 w-12 place-items-center rounded-full bg-primary text-lg font-bold text-primary-foreground">
-                {listing.seller.name.charAt(0).toUpperCase()}
+                {(listing.sellerName || listing.seller?.name || "U").charAt(0).toUpperCase()}
               </span>
               <div className="min-w-0">
-                <p className="truncate font-semibold text-foreground group-hover:underline">
-                  {listing.seller.name}
+                <p className="truncate font-semibold text-foreground">
+                  {listing.sellerName || listing.seller?.name}
                 </p>
-                <TrustBadge score={listing.seller.trust_score} size="sm" />
+                {listing.seller && <TrustBadge score={listing.seller.trustScore} size="sm" />}
               </div>
-            </Link>
+            </div>
 
             {!isOwner && listing.status === "active" && (
-              <>
+              <div className="mt-6 space-y-3">
+                <Button
+                  onClick={onCall}
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 py-6"
+                >
+                  <ShoppingCart size={20} className="mr-2" />
+                  Call Seller ({listing.sellerContact})
+                </Button>
+                
                 <Button
                   onClick={onWhatsApp}
-                  className="mt-4 w-full bg-[var(--color-whatsapp)] text-white hover:bg-[var(--color-whatsapp)]/90"
+                  className="w-full bg-[var(--color-whatsapp)] text-white hover:bg-[var(--color-whatsapp)]/90 py-6"
                 >
-                  <MessageCircle size={18} className="mr-2" />
-                  Contact / Buy on WhatsApp
+                  <MessageCircle size={20} className="mr-2" />
+                  Chat on WhatsApp
                 </Button>
-                <Button
-                  onClick={addToCart}
-                  variant="outline"
-                  className="mt-2 w-full border-primary/20 text-primary hover:bg-muted"
-                >
-                  <ShoppingCart size={18} className="mr-2" /> Add to cart
-                </Button>
-              </>
+                
+                <p className="text-[10px] text-center text-muted-foreground">
+                  Always meet in a public place. Inspect item before paying.
+                </p>
+              </div>
             )}
 
             {listing.status === "sold" && (
@@ -409,7 +385,7 @@ function ProductDetailPage() {
             {isOwner && (
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <Button
-                  onClick={() => navigate({ to: "/edit/$id", params: { id: listing.id } })}
+                  onClick={() => navigate({ to: "/edit/$id", params: { id: listing._id } })}
                   variant="outline"
                 >
                   <Pencil size={16} className="mr-1.5" /> Edit
@@ -420,10 +396,10 @@ function ProductDetailPage() {
               </div>
             )}
 
-            {user && !isOwner && (
+            {user && !isOwner && listing.seller && (
               <ReportDialog
-                reportedUserId={listing.seller.id}
-                listingId={listing.id}
+                reportedUserId={listing.seller._id}
+                listingId={listing._id}
                 trigger={
                   <Button variant="ghost" className="mt-2 w-full text-trust-low hover:text-trust-low">
                     <Flag size={16} className="mr-1.5" /> Report this listing
@@ -459,22 +435,19 @@ function ReviewForm({ sellerId, onDone }: { sellerId: string; onDone: () => void
     e.preventDefault();
     if (!user) return;
     setSubmitting(true);
-    const { error } = await supabase.from("reviews").upsert(
-      {
-        seller_id: sellerId,
-        reviewer_id: user.id,
+    try {
+      await reviewsAPI.createReview({
+        sellerId,
         rating,
-        feedback: feedback.trim() || null,
-      },
-      { onConflict: "seller_id,reviewer_id" },
-    );
-    setSubmitting(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
+        feedback: feedback.trim() || undefined
+      });
       toast.success("Review submitted — trust score updated");
       setFeedback("");
       onDone();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to submit review");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -532,21 +505,21 @@ export function ReportDialog({
   const submit = async () => {
     if (!user) return;
     setSubmitting(true);
-    const { error } = await supabase.from("reports").insert({
-      reported_user_id: reportedUserId,
-      reporter_id: user.id,
-      listing_id: listingId ?? null,
-      reason,
-      details: details.trim() || null,
-    });
-    setSubmitting(false);
-    if (error) {
-      if (error.code === "23505") toast.info("You already reported this");
-      else toast.error(error.message);
-    } else {
+    try {
+      await reportsAPI.createReport({
+        reportedUserId,
+        reporterId: user.id,
+        listingId: listingId ?? null,
+        reason,
+        details: details.trim() || undefined,
+      });
       toast.success("Report filed. Trust score updated.");
       setOpen(false);
       setDetails("");
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to file report");
+    } finally {
+      setSubmitting(false);
     }
   };
 

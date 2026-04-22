@@ -50,4 +50,10 @@ export const reportsAPI = {
   updateReport: (id: string, data: any) => api.put(`/reports/${id}`, data)
 };
 
+export const reviewsAPI = {
+  getReviews: (sellerId: string) => api.get(`/reviews/seller/${sellerId}`),
+  createReview: (data: { sellerId: string; rating: number; feedback?: string }) => 
+    api.post('/reviews', data)
+};
+
 export default api;

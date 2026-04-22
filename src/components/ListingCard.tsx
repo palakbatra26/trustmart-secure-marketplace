@@ -3,7 +3,8 @@ import { TrustBadge } from "@/components/TrustBadge";
 import { formatPrice } from "@/lib/trust";
 
 export interface ListingCardData {
-  id: string;
+  id?: string;
+  _id?: string;
   title: string;
   price: number | string;
   category: string;
@@ -11,23 +12,24 @@ export interface ListingCardData {
   imageUrl?: string;
   images?: string[];
   status?: "active" | "sold" | "removed";
-  seller: { id: string; name: string; trustScore?: number; trust_score?: number } | null;
+  seller: { id?: string; _id?: string; name: string; trustScore?: number; trust_score?: number } | null;
 }
 
 function getImageUrl(listing: ListingCardData): string {
-  if (listing.image_url) return listing.image_url;
   if (listing.imageUrl) return listing.imageUrl;
+  if (listing.image_url) return listing.image_url;
   if (listing.images && listing.images.length > 0) return listing.images[0];
   return '';
 }
 
 export function ListingCard({ listing }: { listing: ListingCardData }) {
   const imageUrl = getImageUrl(listing);
+  const listingId = listing._id || listing.id;
   
   return (
     <Link
       to="/product/$id"
-      params={{ id: listing.id }}
+      params={{ id: listingId || "" }}
       className="group block overflow-hidden rounded-xl bg-surface ring-1 ring-border transition hover:ring-accent/60 hover:shadow-[var(--shadow-elevated)]"
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
@@ -48,7 +50,7 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
         )}
         {listing.seller && (
           <div className="absolute right-2 top-2">
-            <TrustBadge score={listing.seller.trust_score} size="sm" showLabel={false} />
+            <TrustBadge score={listing.seller.trustScore ?? listing.seller.trust_score} size="sm" showLabel={false} />
           </div>
         )}
       </div>

@@ -36,16 +36,31 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', protect, async (req, res) => {
   try {
-    const { title, description, price, category, images } = req.body;
-    if (!title || !description || !price || !category) {
+    const { 
+      title, description, price, category, images,
+      sellerName, sellerAddress, sellerContact, sellerWhatsApp 
+    } = req.body;
+
+    if (!title || !description || !price || !category || !sellerName || !sellerAddress || !sellerContact) {
       return res.status(400).json({ message: 'Please provide all required fields' });
     }
+
+    // Basic phone validation (10-15 digits)
+    const phoneRegex = /^[0-9]{10,15}$/;
+    if (!phoneRegex.test(sellerContact.replace(/\+/g, ''))) {
+      return res.status(400).json({ message: 'Invalid contact number. Must be 10-15 digits.' });
+    }
+
     const productData = {
       title,
       description,
       price,
       category,
       seller: req.user._id,
+      sellerName,
+      sellerAddress,
+      sellerContact,
+      sellerWhatsApp: sellerWhatsApp || sellerContact,
       images: images || [],
       imageUrl: images?.[0] || ''
     };

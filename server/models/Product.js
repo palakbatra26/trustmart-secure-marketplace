@@ -12,6 +12,10 @@ const productSchema = new mongoose.Schema({
   images: [{ type: String }],
   imageUrl: { type: String },
   seller: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  sellerName: { type: String, required: true },
+  sellerAddress: { type: String, required: true },
+  sellerContact: { type: String, required: true },
+  sellerWhatsApp: { type: String },
   status: { type: String, enum: ['active', 'sold', 'removed'], default: 'active' }
 }, { timestamps: true });
 
