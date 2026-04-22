@@ -9,11 +9,13 @@ const productRoutes = require('./routes/products');
 const commentRoutes = require('./routes/comments');
 const reportRoutes = require('./routes/reports');
 const superadminRoutes = require('./routes/superadmin');
+const reviewRoutes = require('./routes/reviews');
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://palakbatra79_db_user:TrustMarket@cluster0.47t6fhh.mongodb.net/trustmarket';
 
@@ -27,6 +29,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/admin', superadminRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'TrustMarket API running' });

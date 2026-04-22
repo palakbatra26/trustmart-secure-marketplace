@@ -2,7 +2,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { authAPI } from "./mongodb";
 
 export type Profile = {
-  id: string;
+  _id: string;
+  id?: string;
   name: string;
   email: string;
   phone?: string;
@@ -49,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (token) {
       fetchProfile().then(p => {
         setProfile(p);
-        setUser(p ? { id: p.id, email: p.email } : null);
+        setUser(p ? { id: p._id, email: p.email } : null);
         setLoading(false);
       });
     } else {

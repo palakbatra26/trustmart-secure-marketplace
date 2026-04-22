@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { adminAPI } from "@/lib/mongodb";
 import { useAuth } from "@/lib/auth";
 import { TrustBadge } from "@/components/TrustBadge";
 import { Button } from "@/components/ui/button";
@@ -14,47 +14,38 @@ import {
   X,
   Trash2,
   AlertTriangle,
+  Database,
+  Terminal
 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 
 type ProfileAdmin = {
-  id: string;
+  _id: string;
   name: string;
   email: string;
-  trust_score: number;
-  report_count: number;
-  created_at: string;
-  is_admin: boolean;
+  trustScore: number;
+  reportCount: number;
+  createdAt: string;
+  isAdmin: boolean;
 };
 
 type ListingAdmin = {
-  id: string;
+  _id: string;
   title: string;
   price: number;
   category: string;
   status: "active" | "sold" | "removed";
-  created_at: string;
-  seller: { id: string; name: string } | null;
+  createdAt: string;
+  seller: { _id: string; name: string } | null;
 };
 
 type ReportDisplay = {
-  id: string;
+  _id: string;
   reason: string;
   details: string | null;
-  created_at: string;
-  reporter: { name: string } | null;
-  reported_user: { name: string } | null;
-  listing_id: string | null;
+  createdAt: string;
+  reporterId: { name: string } | null;
+  reportedUserId: { name: string } | null;
+  listingId: string | null;
 };
 
 export const Route = createFileRoute("/admin")({
@@ -69,32 +60,27 @@ function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"users" | "products" | "reports">("users");
 
-  // Check if user is admin
-  const isAdmin = profile?.trust_score === 100 && profile?.report_count === 0;
+  const isAdmin = profile?.isAdmin || (profile?.trustScore === 100 && profile?.reportCount === 0);
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    if (tab === "users") {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, name, email, trust_score, report_count, created_at, is_admin")
-        .order("created_at", { ascending: false });
-      setUsers((data ?? []) as unknown as ProfileAdmin[]);
-    } else if (tab === "products") {
-      const { data } = await supabase
-        .from("listings")
-        .select("id, title, price, category, status, created_at, seller:profiles!listings_seller_id_fkey(id, name)")
-        .order("created_at", { ascending: false })
-        .limit(50);
-      setListings((data ?? []) as unknown as ListingAdmin[]);
-    } else if (tab === "reports") {
-      const { data } = await supabase
-        .from("reports")
-        .select("id, reason, details, created_at, reporter:profiles!reports_reporter_id_fkey(name), reported_user:profiles!reports_reported_user_id_fkey(name), listing_id")
-        .order("created_at", { ascending: false });
-      setReports((data ?? []) as unknown as ReportDisplay[]);
+    try {
+      if (tab === "users") {
+        const res = await adminAPI.getUsers();
+        setUsers(res.data);
+      } else if (tab === "products") {
+        const res = await adminAPI.getProducts();
+        setListings(res.data);
+      } else if (tab === "reports") {
+        const res = await adminAPI.getReports();
+        setReports(res.data);
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Telemetry failed to sync");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [tab]);
 
   useEffect(() => {
@@ -103,262 +89,232 @@ function AdminPage() {
   }, [loadData, isAdmin]);
 
   const deleteUser = async (userId: string) => {
-    if (!confirm("Delete this user and all their listings?")) return;
-    const { error } = await supabase.from("profiles").delete().eq("id", userId);
-    if (error) toast.error(error.message);
-    else {
-      toast.success("User deleted");
+    if (!confirm("EXPUNGE USER: This action is irreversible. Proceed?")) return;
+    try {
+      await adminAPI.deleteUser(userId);
+      toast.success("User expunged from neural network");
       void loadData();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Operation failed");
     }
   };
 
   const deleteListing = async (listingId: string) => {
-    if (!confirm("Delete this listing?")) return;
-    const { error } = await supabase.from("listings").delete().eq("id", listingId);
-    if (error) toast.error(error.message);
-    else {
-      toast.success("Listing deleted");
+    if (!confirm("DELETE ASSET: Proceed?")) return;
+    try {
+      await adminAPI.deleteProduct(listingId);
+      toast.success("Asset decommissioned");
       void loadData();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Operation failed");
     }
-  };
-
-  const resolveReport = async (reportId: string, approved: boolean) => {
-    // Reports just exist - we'd need more columns to resolve them
-    // For now we'll just show them
-    toast.info(approved ? "Report approved" : "Report rejected");
   };
 
   if (!isAdmin) {
     return (
-      <div className="mx-auto max-w-md px-4 py-20 text-center">
-        <AlertTriangle size={48} className="mx-auto mb-4 text-amber-500" />
-        <h1 className="text-2xl font-bold">Admin Access Only</h1>
-        <p className="mt-2 text-muted-foreground">
-          You need admin privileges to view this page.
-        </p>
+      <div className="mx-auto max-w-md px-4 py-32 text-center">
+        <div className="card-3d rounded-[2.5rem] glass p-12 shadow-2xl">
+          <AlertTriangle size={64} className="mx-auto mb-6 text-destructive animate-pulse" />
+          <h1 className="text-3xl font-black uppercase tracking-tighter text-primary">Access Denied</h1>
+          <p className="mt-4 text-xs font-bold uppercase tracking-[0.2em] text-primary/40 leading-relaxed">
+            Unauthorized attempt logged. Admin clearance required for Neural Command Center.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-primary">Admin Dashboard</h1>
+    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:py-20">
+      <div className="mb-12 flex flex-col sm:flex-row items-center justify-between gap-6">
+        <div className="space-y-2 text-center sm:text-left">
+          <h1 className="text-4xl font-black text-primary uppercase tracking-tighter sm:text-5xl lg:text-6xl">Neural <span className="text-accent text-glow">Dashboard.</span></h1>
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary/30">Master Control Terminal v4.0.2</p>
+        </div>
+        <div className="flex gap-4">
+          <div className="glass rounded-2xl p-4 flex items-center gap-4 ring-1 ring-primary/5">
+            <Database className="text-accent" size={24} />
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-primary/40">Network Status</p>
+              <p className="text-sm font-black text-success">SYNCHRONIZED</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Tabs */}
-      <div className="mb-4 flex gap-2 border-b border-border">
+      <div className="mb-10 flex flex-wrap gap-2 p-1.5 rounded-[2rem] glass ring-1 ring-primary/5 w-fit mx-auto sm:mx-0">
         <button
           onClick={() => setTab("users")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2 transition ${
-            tab === "users"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+          className={`flex items-center gap-3 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+            tab === "users" ? "bg-primary text-accent shadow-xl scale-105" : "text-primary/40 hover:text-primary hover:bg-primary/5"
           }`}
         >
           <Users size={18} />
-          Users ({users.length})
+          Operators ({users.length})
         </button>
         <button
           onClick={() => setTab("products")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2 transition ${
-            tab === "products"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+          className={`flex items-center gap-3 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+            tab === "products" ? "bg-primary text-accent shadow-xl scale-105" : "text-primary/40 hover:text-primary hover:bg-primary/5"
           }`}
         >
           <ShoppingBag size={18} />
-          Products
+          Assets
         </button>
         <button
           onClick={() => setTab("reports")}
-          className={`flex items-center gap-2 border-b-2 px-4 py-2 transition ${
-            tab === "reports"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+          className={`flex items-center gap-3 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+            tab === "reports" ? "bg-primary text-accent shadow-xl scale-105" : "text-primary/40 hover:text-primary hover:bg-primary/5"
           }`}
         >
           <Flag size={18} />
-          Reports
+          Violation Logs
         </button>
       </div>
 
       {loading ? (
-        <div className="grid place-items-center py-20 text-muted-foreground">
-          <Loader2 className="animate-spin" />
+        <div className="grid place-items-center py-32 text-primary/10">
+          <Loader2 className="animate-spin h-16 w-16" />
         </div>
       ) : tab === "users" ? (
-        <div className="rounded-xl border border-border bg-surface">
-          <table className="w-full">
-            <thead className="border-b border-border bg-muted/50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Name</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Email</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Trust</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Reports</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Joined</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id} className="border-b border-border">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      {u.is_admin && (
-                        <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-bold text-primary">
-                          ADMIN
-                        </span>
+        <div className="rounded-[2.5rem] glass overflow-hidden shadow-2xl ring-1 ring-primary/5">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-primary/5 text-[10px] font-black uppercase tracking-widest text-primary/40">
+                  <th className="px-8 py-6">Operator Signature</th>
+                  <th className="px-8 py-6">Neural Frequency</th>
+                  <th className="px-8 py-6">Trust Index</th>
+                  <th className="px-8 py-6">Violations</th>
+                  <th className="px-8 py-6">Commissioned</th>
+                  <th className="px-8 py-6">Terminal</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-primary/5">
+                {users.map((u) => (
+                  <tr key={u._id} className="hover:bg-primary/[0.02] transition-colors group">
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-3">
+                        {u.isAdmin && (
+                          <span className="rounded-lg bg-accent/20 px-2 py-1 text-[8px] font-black text-primary border border-accent/20">
+                            CORE
+                          </span>
+                        )}
+                        <span className="font-bold text-primary">{u.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 text-xs font-bold text-primary/40">{u.email}</td>
+                    <td className="px-8 py-6"><TrustBadge score={u.trustScore} size="sm" /></td>
+                    <td className="px-8 py-6">
+                      <span className={`text-xs font-black ${u.reportCount > 0 ? "text-destructive" : "text-primary/20"}`}>
+                        {u.reportCount}
+                      </span>
+                    </td>
+                    <td className="px-8 py-6 text-xs font-bold text-primary/40">
+                      {new Date(u.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-8 py-6">
+                      {!u.isAdmin && (
+                        <button
+                          onClick={() => deleteUser(u._id)}
+                          className="h-10 w-10 rounded-xl bg-destructive/10 text-destructive grid place-items-center hover:bg-destructive hover:text-white transition-all scale-0 group-hover:scale-100"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       )}
-                      <span className="font-medium">{u.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {u.email}
-                  </td>
-                  <td className="px-4 py-3">
-                    <TrustBadge score={u.trust_score} size="sm" />
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={
-                        u.report_count > 0
-                          ? "font-semibold text-trust-low"
-                          : "text-muted-foreground"
-                      }
-                    >
-                      {u.report_count}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {new Date(u.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3">
-                    {!u.is_admin && (
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : tab === "products" ? (
+        <div className="rounded-[2.5rem] glass overflow-hidden shadow-2xl ring-1 ring-primary/5">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-primary/5 text-[10px] font-black uppercase tracking-widest text-primary/40">
+                  <th className="px-8 py-6">Asset Title</th>
+                  <th className="px-8 py-6">Source Operator</th>
+                  <th className="px-8 py-6">Valuation</th>
+                  <th className="px-8 py-6">Sector</th>
+                  <th className="px-8 py-6">Status</th>
+                  <th className="px-8 py-6">Terminal</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-primary/5">
+                {listings.map((l) => (
+                  <tr key={l._id} className="hover:bg-primary/[0.02] transition-colors group">
+                    <td className="px-8 py-6 font-bold text-primary">{l.title}</td>
+                    <td className="px-8 py-6 text-xs font-bold text-primary/40">{l.seller?.name ?? "Expunged"}</td>
+                    <td className="px-8 py-6 font-black text-primary">₹{l.price.toLocaleString()}</td>
+                    <td className="px-8 py-6 text-xs font-black uppercase tracking-widest text-primary/40">{l.category}</td>
+                    <td className="px-8 py-6">
+                      <span className={`rounded-xl px-3 py-1 text-[8px] font-black uppercase tracking-widest border ${
+                        l.status === "active" ? "bg-success/10 text-success border-success/20" : "bg-primary/10 text-primary/40 border-primary/10"
+                      }`}>
+                        {l.status}
+                      </span>
+                    </td>
+                    <td className="px-8 py-6">
                       <button
-                        onClick={() => deleteUser(u.id)}
-                        className="rounded p-1.5 text-trust-low hover:bg-trust-low/10"
-                        title="Delete user"
+                        onClick={() => deleteListing(l._id)}
+                        className="h-10 w-10 rounded-xl bg-destructive/10 text-destructive grid place-items-center hover:bg-destructive hover:text-white transition-all scale-0 group-hover:scale-100"
                       >
                         <Trash2 size={16} />
                       </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {users.length === 0 && (
-            <div className="py-12 text-center text-muted-foreground">
-              No users found
-            </div>
-          )}
-        </div>
-      ) : tab === "products" ? (
-        <div className="rounded-xl border border-border bg-surface">
-          <table className="w-full">
-            <thead className="border-b border-border bg-muted/50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Title</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Seller</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Price</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Category</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {listings.map((l) => (
-                <tr key={l.id} className="border-b border-border">
-                  <td className="px-4 py-3 font-medium">{l.title}</td>
-                  <td className="px-4 py-3 text-sm">
-                    {l.seller?.name ?? "Unknown"}
-                  </td>
-                  <td className="px-4 py-3">₹{l.price.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {l.category}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        l.status === "active"
-                          ? "bg-green-100 text-green-700"
-                          : l.status === "sold"
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {l.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => deleteListing(l.id)}
-                      className="rounded p-1.5 text-trust-low hover:bg-trust-low/10"
-                      title="Delete listing"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {listings.length === 0 && (
-            <div className="py-12 text-center text-muted-foreground">
-              No listings found
-            </div>
-          )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-6">
           {reports.length === 0 ? (
-            <div className="rounded-xl border border-border bg-surface py-12 text-center text-muted-foreground">
-              No reports filed
+            <div className="rounded-[2.5rem] glass py-24 text-center ring-1 ring-primary/5">
+              <Terminal size={48} className="mx-auto mb-6 text-primary/10" />
+              <p className="text-xs font-black uppercase tracking-widest text-primary/30">Zero Violation Logs Recorded</p>
             </div>
           ) : (
             reports.map((r) => (
-              <div
-                key={r.id}
-                className="rounded-xl border border-border bg-surface p-4"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold capitalize">{r.reason.replace("_", " ")}</span>
-                      {r.listing_id && (
-                        <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
-                          Has listing
+              <div key={r._id} className="card-3d rounded-[2.5rem] glass p-8 shadow-xl ring-1 ring-primary/5">
+                <div className="flex flex-col sm:flex-row items-start justify-between gap-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <span className="px-3 py-1 rounded-xl bg-destructive/10 text-destructive text-[10px] font-black uppercase tracking-widest border border-destructive/10">
+                        Violation: {r.reason.replace("_", " ")}
+                      </span>
+                      {r.listingId && (
+                        <span className="px-3 py-1 rounded-xl bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest border border-primary/10">
+                          Asset Linked
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Reported by {r.reporter?.name ?? "Unknown"} on{" "}
-                      {new Date(r.created_at).toLocaleDateString()}
-                    </p>
-                    {r.details && (
-                      <p className="mt-2 text-sm">{r.details}</p>
-                    )}
-                    {r.reported_user && (
-                      <p className="mt-2 text-sm text-trust-low">
-                        Against: {r.reported_user.name}
-                      </p>
-                    )}
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-primary/40 mb-1">Telemetry Data</p>
+                      <p className="font-bold text-primary/80 leading-relaxed">{r.details || "No supplementary briefing provided."}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-8 pt-4 border-t border-primary/5">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-primary/40 mb-1">Reported By</p>
+                        <p className="text-xs font-black text-primary">{r.reporterId?.name ?? "Unknown"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-primary/40 mb-1">Target Operator</p>
+                        <p className="text-xs font-black text-destructive">{r.reportedUserId?.name ?? "Unknown"}</p>
+                      </div>
+                    </div>
                   </div>
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => resolveReport(r.id, true)}
-                      className="rounded bg-green-100 p-2 text-green-600 hover:bg-green-200"
-                      title="Approve"
-                    >
-                      <Check size={16} />
+                    <button className="h-14 w-14 rounded-2xl bg-success/10 text-success grid place-items-center hover:bg-success hover:text-white transition-all shadow-lg shadow-success/10">
+                      <Check size={24} />
                     </button>
-                    <button
-                      onClick={() => resolveReport(r.id, false)}
-                      className="rounded bg-red-100 p-2 text-red-600 hover:bg-red-200"
-                      title="Reject"
-                    >
-                      <X size={16} />
+                    <button className="h-14 w-14 rounded-2xl bg-destructive/10 text-destructive grid place-items-center hover:bg-destructive hover:text-white transition-all shadow-lg shadow-destructive/10">
+                      <X size={24} />
                     </button>
                   </div>
                 </div>
@@ -368,5 +324,7 @@ function AdminPage() {
         </div>
       )}
     </div>
+  );
+}
   );
 }

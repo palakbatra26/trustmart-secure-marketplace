@@ -13,6 +13,17 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      // Optional: window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const authAPI = {
   register: (data: { name: string; email: string; password: string }) => 
     api.post('/auth/register', data),
@@ -48,6 +59,12 @@ export const reportsAPI = {
   createReport: (data: any) => api.post('/reports', data),
   getReports: () => api.get('/reports'),
   updateReport: (id: string, data: any) => api.put(`/reports/${id}`, data)
+};
+
+export const reviewsAPI = {
+  getReviews: (sellerId: string) => api.get(`/reviews/seller/${sellerId}`),
+  createReview: (data: { sellerId: string; rating: number; feedback?: string }) => 
+    api.post('/reviews', data)
 };
 
 export default api;

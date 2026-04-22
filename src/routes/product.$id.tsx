@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { productsAPI, commentsAPI, reviewsAPI, reportsAPI } from "@/lib/mongodb";
 import { useAuth } from "@/lib/auth";
 import { TrustBadge } from "@/components/TrustBadge";
 import { Button } from "@/components/ui/button";
@@ -38,30 +38,35 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
 type Listing = {
-  id: string;
+  _id: string;
   title: string;
   description: string;
   price: number;
   category: string;
-  image_url: string;
+  images: string[];
+  imageUrl: string;
+  sellerName: string;
+  sellerAddress: string;
+  sellerContact: string;
+  sellerWhatsApp: string;
   status: "active" | "sold" | "removed";
-  created_at: string;
-  seller: { id: string; name: string; phone: string | null; trust_score: number; report_count: number } | null;
+  createdAt: string;
+  seller: { _id: string; name: string; phone: string | null; trustScore: number; reportCount: number; email: string } | null;
 };
 
 type Review = {
-  id: string;
+  _id: string;
   rating: number;
   feedback: string | null;
-  created_at: string;
+  createdAt: string;
   reviewer: { name: string } | null;
 };
 
 type Comment = {
-  id: string;
+  _id: string;
   content: string;
-  created_at: string;
-  user: { id: string; name: string } | null;
+  createdAt: string;
+  user: { _id: string; name: string } | null;
 };
 
 export const Route = createFileRoute("/product/$id")({
@@ -82,27 +87,18 @@ function ProductDetailPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("listings")
-      .select(
-        "id, title, description, price, category, image_url, status, created_at, seller:profiles!listings_seller_id_fkey(id, name, phone, trust_score, report_count)",
-      )
-      .eq("id", id)
-      .maybeSingle();
-    if (error || !data) {
-      setListing(null);
-    } else {
+    try {
+      const res = await productsAPI.getProduct(id);
+      const data = res.data;
       setListing(data as unknown as Listing);
-      const sellerId = (data as unknown as Listing).seller?.id;
-      if (sellerId) {
-        const { data: rev } = await supabase
-          .from("reviews")
-          .select("id, rating, feedback, created_at, reviewer:profiles!reviews_reviewer_id_fkey(name)")
-          .eq("seller_id", sellerId)
-          .order("created_at", { ascending: false })
-          .limit(10);
-        setReviews((rev ?? []) as unknown as Review[]);
+      
+      if (data.seller?._id) {
+        const revRes = await reviewsAPI.getReviews(data.seller._id);
+        setReviews(revRes.data);
       }
+    } catch (error) {
+      console.error(error);
+      setListing(null);
     }
     setLoading(false);
   }, [id]);
@@ -114,39 +110,39 @@ function ProductDetailPage() {
 
   const loadComments = async () => {
     setLoadingComments(true);
-    const { data } = await supabase
-      .from("comments")
-      .select("id, content, created_at, user:profiles!comments_user_id_fkey(id, name)")
-      .eq("listing_id", id)
-      .order("created_at", { ascending: false });
-    setComments((data ?? []) as unknown as Comment[]);
+    try {
+      const res = await commentsAPI.getComments(id);
+      setComments(res.data);
+    } catch (error) {
+      console.error(error);
+    }
     setLoadingComments(false);
   };
 
   const submitComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newComment.trim()) return;
-    const { error } = await supabase.from("comments").insert({
-      listing_id: id,
-      user_id: user.id,
-      content: newComment.trim(),
-    });
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      await commentsAPI.createComment({
+        productId: id,
+        content: newComment.trim()
+      });
       toast.success("Comment added");
       setNewComment("");
       void loadComments();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to add comment");
     }
   };
 
   const deleteComment = async (commentId: string) => {
     if (!confirm("Delete this comment?")) return;
-    const { error } = await supabase.from("comments").delete().eq("id", commentId);
-    if (error) toast.error(error.message);
-    else {
+    try {
+      await commentsAPI.deleteComment(commentId);
       toast.success("Comment deleted");
       void loadComments();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to delete comment");
     }
   };
 
@@ -169,279 +165,231 @@ function ProductDetailPage() {
     );
   }
 
-  const isOwner = user?.id === listing.seller.id;
-  const suspicious = isSuspicious(listing.seller.trust_score);
+  const isOwner = user?.id === listing.seller?._id;
+  const suspicious = listing.seller ? isSuspicious(listing.seller.trustScore) : false;
 
-  const onWhatsApp = async () => {
-    if (!user) {
-      toast.info("Log in to contact the seller");
-      void navigate({ to: "/login" });
-      return;
-    }
-    if (isOwner) {
-      toast.error("You can't buy your own listing");
-      return;
-    }
-    // Create a pending deal so the buyer can mark it complete later
-    await supabase
-      .from("deals")
-      .upsert(
-        {
-          listing_id: listing.id,
-          buyer_id: user.id,
-          seller_id: listing.seller!.id,
-        },
-        { onConflict: "listing_id,buyer_id" },
-      );
-    window.open(whatsappLink(listing.title, listing.price), "_blank", "noopener");
+  const onWhatsApp = () => {
+    if (!listing) return;
+    window.open(whatsappLink(listing.title, listing.sellerWhatsApp || listing.sellerContact), "_blank", "noopener");
   };
 
-  const addToCart = async () => {
-    if (!user) {
-      void navigate({ to: "/login" });
-      return;
-    }
-    if (isOwner) {
-      toast.error("You can't add your own listing to cart");
-      return;
-    }
-    const { error } = await supabase.from("cart_items").insert({
-      user_id: user.id,
-      listing_id: listing.id,
-    });
-    if (error) {
-      if (error.code === "23505") toast.info("Already in your cart");
-      else toast.error(error.message);
-    } else {
-      toast.success("Added to cart");
-    }
+  const onCall = () => {
+    if (!listing) return;
+    window.location.href = `tel:${listing.sellerContact}`;
   };
 
   const deleteListing = async () => {
     if (!confirm("Delete this listing?")) return;
-    const { error } = await supabase.from("listings").delete().eq("id", listing.id);
-    if (error) toast.error(error.message);
-    else {
+    try {
+      await productsAPI.deleteProduct(listing._id);
       toast.success("Listing deleted");
       void navigate({ to: "/" });
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to delete listing");
     }
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-      {suspicious && (
-        <div className="mb-4 flex items-start gap-3 rounded-xl border border-trust-low/40 bg-trust-low/10 p-3 text-sm text-trust-low">
-          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:py-16">
+      {suspicious && listing.seller && (
+        <div className="mb-8 flex items-start gap-4 rounded-3xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive backdrop-blur-xl animate-pulse ring-1 ring-destructive/10">
+          <AlertTriangle size={20} className="mt-0.5 shrink-0" />
           <div>
-            <p className="font-bold">Suspicious user warning</p>
-            <p className="text-trust-low/80">
-              This seller has a low trust score ({listing.seller.trust_score}). Proceed with extra
-              caution.
+            <p className="font-black uppercase tracking-widest">High Risk Directive</p>
+            <p className="font-bold opacity-80">
+              Low trust index detected ({listing.seller.trustScore}). Neural verification failed.
             </p>
           </div>
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Image + description */}
-        <div className="lg:col-span-2">
-          <div className="overflow-hidden rounded-2xl bg-surface ring-1 ring-border">
+      <div className="grid gap-10 lg:grid-cols-12">
+        {/* Left Column: Media + Info */}
+        <div className="lg:col-span-8 space-y-8">
+          <div className="card-3d overflow-hidden rounded-[3rem] glass ring-1 ring-primary/10 shadow-3d">
             <img
-              src={listing.image_url}
+              src={listing.imageUrl || listing.images?.[0] || "/placeholder.svg"}
               alt={listing.title}
-              className="aspect-[4/3] w-full object-cover"
+              className="aspect-[16/10] w-full object-cover"
             />
           </div>
 
-          <div className="mt-5 rounded-2xl bg-surface p-5 ring-1 ring-border sm:p-6">
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {listing.category}
-            </span>
-            <h1 className="mt-1 text-2xl font-extrabold text-primary sm:text-3xl">{listing.title}</h1>
-            <p className="mt-2 text-3xl font-bold text-foreground">{formatPrice(listing.price)}</p>
-            <div className="mt-4 whitespace-pre-wrap text-foreground/85">{listing.description}</div>
-          </div>
-
-          {/* Reviews */}
-          <div className="mt-5 rounded-2xl bg-surface p-5 ring-1 ring-border sm:p-6">
-            <h2 className="text-lg font-bold">Seller reviews</h2>
-            {reviews.length === 0 ? (
-              <p className="mt-2 text-sm text-muted-foreground">No reviews yet.</p>
-            ) : (
-              <ul className="mt-3 space-y-3">
-                {reviews.map((r) => (
-                  <li key={r.id} className="rounded-lg border border-border p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold">{r.reviewer?.name ?? "Anonymous"}</span>
-                      <span className="flex items-center gap-0.5 text-trust-mid">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <Star
-                            key={i}
-                            size={14}
-                            className={i < r.rating ? "fill-current" : "opacity-30"}
-                          />
-                        ))}
-                      </span>
-                    </div>
-                    {r.feedback && <p className="mt-1 text-sm text-foreground/85">{r.feedback}</p>}
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {user && !isOwner && profile && (
-              <div className="mt-4">
-                <ReviewForm sellerId={listing.seller.id} onDone={load} />
+          <div className="rounded-[2.5rem] glass p-8 shadow-2xl ring-1 ring-primary/10 sm:p-12 space-y-8">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="rounded-full bg-primary/10 px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-primary/60 ring-1 ring-primary/10">
+                  {listing.category}
+                </span>
+                <span className="text-xs font-bold text-primary/40 uppercase tracking-widest">Added {new Date(listing.createdAt).toLocaleDateString()}</span>
               </div>
-            )}
+              <h1 className="text-4xl font-black text-primary leading-tight sm:text-5xl lg:text-6xl tracking-tighter uppercase">{listing.title}</h1>
+              <p className="text-5xl font-black text-primary/90 text-glow tracking-tighter">{formatPrice(listing.price)}</p>
+            </div>
+            
+            <div className="grid gap-6 sm:grid-cols-2 border-y border-primary/5 py-8">
+              <div className="flex items-center gap-4">
+                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary/5 text-primary">
+                  <Flag size={20} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-primary/40">Secure Location</p>
+                  <p className="text-sm font-bold text-primary/80">{listing.sellerAddress}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-accent/20 text-primary">
+                  <CheckCircle2 size={20} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-primary/40">Item Integrity</p>
+                  <p className="text-sm font-bold text-primary/80">Neural Verified</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-primary/40">Transmission Details</h3>
+              <div className="whitespace-pre-wrap text-lg font-medium leading-relaxed text-primary/80">{listing.description}</div>
+            </div>
           </div>
 
           {/* Comments Section */}
-          <div className="mt-5 rounded-2xl bg-surface p-5 ring-1 ring-border sm:p-6">
-            <h2 className="text-lg font-bold flex items-center gap-2">
-              <MessageCircle size={20} />
-              Comments ({comments.length})
+          <div className="rounded-[2.5rem] glass p-8 shadow-2xl ring-1 ring-primary/10 sm:p-12">
+            <h2 className="text-2xl font-black text-primary uppercase tracking-tighter flex items-center gap-3">
+              <MessageCircle size={28} className="text-accent" />
+              Intelligence Feed ({comments.length})
             </h2>
 
-            {/* Add comment form */}
             {user && (
-              <form onSubmit={submitComment} className="mt-4 flex gap-2">
+              <form onSubmit={submitComment} className="mt-8 relative group">
                 <Textarea
-                  className="flex-1"
-                  rows={2}
-                  placeholder="Ask a question or leave a comment..."
+                  className="w-full rounded-[1.5rem] bg-primary/5 border-none p-6 font-bold placeholder:text-primary/20 text-primary min-h-[120px] ring-1 ring-primary/5 focus:ring-primary/20 transition-all"
+                  placeholder="Ask a question..."
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   maxLength={500}
                 />
-                <Button type="submit" className="self-end" disabled={!newComment.trim()}>
-                  <Send size={16} />
+                <Button type="submit" className="absolute bottom-4 right-4 h-12 w-12 rounded-2xl bg-primary text-accent shadow-xl hover:scale-105 active:scale-95" disabled={!newComment.trim()}>
+                  <Send size={18} />
                 </Button>
               </form>
             )}
 
-            {/* Comments list */}
-            {loadingComments ? (
-              <div className="mt-4 text-center text-muted-foreground">
-                <Loader2 className="animate-spin" />
-              </div>
-            ) : comments.length === 0 ? (
-              <p className="mt-4 text-sm text-muted-foreground">
-                No comments yet. Be the first to ask!
-              </p>
-            ) : (
-              <ul className="mt-4 space-y-3">
-                {comments.map((c) => (
-                  <li key={c.id} className="rounded-lg border border-border p-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="font-semibold text-sm">
-                          {c.user?.name ?? "Anonymous"}
-                        </span>
-                        <p className="mt-1 text-foreground/85">{c.content}</p>
-                        <span className="mt-1 block text-xs text-muted-foreground">
-                          {new Date(c.created_at).toLocaleDateString()}
-                        </span>
+            <div className="mt-10 space-y-4">
+              {loadingComments ? (
+                <div className="py-10 text-center"><Loader2 className="animate-spin mx-auto text-primary/20" /></div>
+              ) : comments.length === 0 ? (
+                <p className="text-center py-10 text-xs font-black uppercase tracking-widest text-primary/20">No active transmissions</p>
+              ) : (
+                <ul className="space-y-4">
+                  {comments.map((c) => (
+                    <li key={c._id} className="rounded-2xl bg-primary/5 p-6 ring-1 ring-primary/5 hover:bg-primary/[0.07] transition-all">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-2">
+                          <span className="text-xs font-black uppercase tracking-widest text-primary/60">{c.user?.name ?? "Unknown Entity"}</span>
+                          <p className="font-bold text-primary/80">{c.content}</p>
+                        </div>
+                        {user?.id === c.user?._id && (
+                          <button onClick={() => deleteComment(c._id)} className="h-8 w-8 rounded-lg bg-destructive/10 text-destructive grid place-items-center hover:bg-destructive transition-colors hover:text-white">
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
-                      {user?.id === c.user?.id && (
-                        <button
-                          onClick={() => deleteComment(c.id)}
-                          className="rounded p-1 text-trust-low hover:bg-trust-low/10"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Sidebar */}
-        <aside className="space-y-4">
-          <div className="rounded-2xl bg-surface p-5 ring-1 ring-border">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Seller
-            </h3>
-            <Link
-              to="/user/$id"
-              params={{ id: listing.seller.id }}
-              className="mt-2 flex items-center gap-3 group"
-            >
-              <span className="grid h-12 w-12 place-items-center rounded-full bg-primary text-lg font-bold text-primary-foreground">
-                {listing.seller.name.charAt(0).toUpperCase()}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-foreground group-hover:underline">
-                  {listing.seller.name}
-                </p>
-                <TrustBadge score={listing.seller.trust_score} size="sm" />
+        {/* Right Column: Sidebar */}
+        <aside className="lg:col-span-4 space-y-6">
+          <div className="sticky top-28 space-y-6">
+            <div className="rounded-[2.5rem] glass p-8 shadow-3d ring-1 ring-primary/10 animate-float">
+              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-primary/40 mb-6">Operator Credentials</h3>
+              <div className="flex items-center gap-4">
+                <div className="h-16 w-16 rounded-[1.25rem] bg-primary text-accent grid place-items-center text-2xl font-black shadow-xl ring-2 ring-accent/20">
+                  {(listing.sellerName || listing.seller?.name || "U").charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0 space-y-1">
+                  <p className="text-xl font-black text-primary uppercase tracking-tighter truncate leading-none">
+                    {listing.sellerName || listing.seller?.name}
+                  </p>
+                  {listing.seller && <TrustBadge score={listing.seller.trustScore} size="sm" />}
+                </div>
               </div>
-            </Link>
 
-            {!isOwner && listing.status === "active" && (
-              <>
-                <Button
-                  onClick={onWhatsApp}
-                  className="mt-4 w-full bg-[var(--color-whatsapp)] text-white hover:bg-[var(--color-whatsapp)]/90"
-                >
-                  <MessageCircle size={18} className="mr-2" />
-                  Contact / Buy on WhatsApp
-                </Button>
-                <Button
-                  onClick={addToCart}
-                  variant="outline"
-                  className="mt-2 w-full border-primary/20 text-primary hover:bg-muted"
-                >
-                  <ShoppingCart size={18} className="mr-2" /> Add to cart
-                </Button>
-              </>
-            )}
-
-            {listing.status === "sold" && (
-              <div className="mt-4 rounded-lg bg-muted p-3 text-center text-sm font-semibold text-muted-foreground">
-                This item has been sold
-              </div>
-            )}
-
-            {isOwner && (
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <Button
-                  onClick={() => navigate({ to: "/edit/$id", params: { id: listing.id } })}
-                  variant="outline"
-                >
-                  <Pencil size={16} className="mr-1.5" /> Edit
-                </Button>
-                <Button onClick={deleteListing} variant="destructive">
-                  <Trash2 size={16} className="mr-1.5" /> Delete
-                </Button>
-              </div>
-            )}
-
-            {user && !isOwner && (
-              <ReportDialog
-                reportedUserId={listing.seller.id}
-                listingId={listing.id}
-                trigger={
-                  <Button variant="ghost" className="mt-2 w-full text-trust-low hover:text-trust-low">
-                    <Flag size={16} className="mr-1.5" /> Report this listing
+              {!isOwner && listing.status === "active" && (
+                <div className="mt-10 space-y-4">
+                  <Button
+                    onClick={onCall}
+                    className="w-full h-16 rounded-2xl bg-primary text-accent font-black uppercase tracking-widest shadow-xl hover:scale-[1.02] active:scale-95 transition-all"
+                  >
+                    <ShoppingCart size={20} className="mr-3" />
+                    Direct Call
                   </Button>
-                }
-              />
-            )}
-          </div>
+                  
+                  <Button
+                    onClick={onWhatsApp}
+                    className="w-full h-16 rounded-2xl bg-whatsapp text-white font-black uppercase tracking-widest shadow-xl hover:scale-[1.02] active:scale-95 transition-all ring-1 ring-white/10"
+                  >
+                    <MessageCircle size={20} className="mr-3" />
+                    Secure Chat
+                  </Button>
+                  
+                  <div className="rounded-2xl bg-primary/5 p-4 text-[10px] font-black uppercase tracking-widest text-primary/30 text-center leading-relaxed">
+                    Verified Trade Only. Always meet in Public Sectors.
+                  </div>
+                </div>
+              )}
 
-          <div className="rounded-2xl bg-primary p-5 text-primary-foreground">
-            <p className="flex items-center gap-2 text-sm font-semibold text-accent">
-              <CheckCircle2 size={16} /> TrustMart Safety
-            </p>
-            <ul className="mt-2 space-y-1 text-sm text-primary-foreground/80">
-              <li>• Always meet in a public place</li>
-              <li>• Inspect before paying</li>
-              <li>• Never share OTP or bank details</li>
-            </ul>
+              {isOwner && (
+                <div className="mt-8 grid grid-cols-2 gap-3">
+                  <Button
+                    onClick={() => navigate({ to: "/edit/$id", params: { id: listing._id } })}
+                    className="h-12 rounded-xl glass font-black uppercase tracking-widest text-xs text-primary/70 hover:text-primary"
+                  >
+                    <Pencil size={14} className="mr-2" /> Modify
+                  </Button>
+                  <Button onClick={deleteListing} variant="destructive" className="h-12 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg">
+                    <Trash2 size={14} className="mr-2" /> Expunge
+                  </Button>
+                </div>
+              )}
+
+              {user && !isOwner && listing.seller && (
+                <ReportDialog
+                  reportedUserId={listing.seller._id}
+                  listingId={listing._id}
+                  trigger={
+                    <Button variant="ghost" className="mt-4 w-full h-12 rounded-xl font-black uppercase tracking-widest text-[10px] text-destructive/40 hover:text-destructive hover:bg-destructive/5 transition-all">
+                      <Flag size={14} className="mr-2" /> Report Violation
+                    </Button>
+                  }
+                />
+              )}
+            </div>
+
+            <div className="rounded-[2.5rem] bg-primary p-8 text-primary-foreground shadow-3d glow-effect overflow-hidden relative">
+              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 mix-blend-overlay" />
+              <div className="relative z-10 space-y-4">
+                <p className="flex items-center gap-3 text-xs font-black uppercase tracking-[0.2em] text-accent">
+                  <CheckCircle2 size={18} /> Protocol Safety
+                </p>
+                <ul className="space-y-4 text-sm font-bold text-primary-foreground/60">
+                  <li className="flex items-start gap-3">
+                    <span className="text-accent">01.</span> Public Sector Meeting Only
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="text-accent">02.</span> Neural Item Verification
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="text-accent">03.</span> No Signal Interception
+                  </li>
+                </ul>
+              </div>
+            </div>
           </div>
         </aside>
       </div>
@@ -459,22 +407,19 @@ function ReviewForm({ sellerId, onDone }: { sellerId: string; onDone: () => void
     e.preventDefault();
     if (!user) return;
     setSubmitting(true);
-    const { error } = await supabase.from("reviews").upsert(
-      {
-        seller_id: sellerId,
-        reviewer_id: user.id,
+    try {
+      await reviewsAPI.createReview({
+        sellerId,
         rating,
-        feedback: feedback.trim() || null,
-      },
-      { onConflict: "seller_id,reviewer_id" },
-    );
-    setSubmitting(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
+        feedback: feedback.trim() || undefined
+      });
       toast.success("Review submitted — trust score updated");
       setFeedback("");
       onDone();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to submit review");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -532,21 +477,21 @@ export function ReportDialog({
   const submit = async () => {
     if (!user) return;
     setSubmitting(true);
-    const { error } = await supabase.from("reports").insert({
-      reported_user_id: reportedUserId,
-      reporter_id: user.id,
-      listing_id: listingId ?? null,
-      reason,
-      details: details.trim() || null,
-    });
-    setSubmitting(false);
-    if (error) {
-      if (error.code === "23505") toast.info("You already reported this");
-      else toast.error(error.message);
-    } else {
+    try {
+      await reportsAPI.createReport({
+        reportedUserId,
+        reporterId: user.id,
+        listingId: listingId ?? null,
+        reason,
+        details: details.trim() || undefined,
+      });
       toast.success("Report filed. Trust score updated.");
       setOpen(false);
       setDetails("");
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to file report");
+    } finally {
+      setSubmitting(false);
     }
   };
 

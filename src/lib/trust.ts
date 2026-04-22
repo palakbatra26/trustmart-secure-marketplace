@@ -64,9 +64,8 @@ export function formatPrice(value: number | string): string {
 
 export const SELLER_PHONE = "917986904164";
 
-export function whatsappLink(productName: string, price: number | string): string {
-  const formattedPrice =
-    typeof price === "string" ? price : new Intl.NumberFormat("en-IN").format(price);
-  const text = `I'm interested in your product: ${productName} priced at ₹${formattedPrice}`;
-  return `https://wa.me/${SELLER_PHONE}?text=${encodeURIComponent(text)}`;
+export function whatsappLink(productName: string, phone?: string): string {
+  const text = `Hi, I’m interested in your product: ${productName}`;
+  const targetPhone = phone ? phone.replace(/\D/g, '') : SELLER_PHONE;
+  return `https://wa.me/${targetPhone}?text=${encodeURIComponent(text)}`;
 }

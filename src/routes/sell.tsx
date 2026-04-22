@@ -39,19 +39,27 @@ function SellPage() {
     description: "",
     price: "",
     category: "",
-    imageUrl: "",
+    images: [] as string[],
+    sellerName: "",
+    sellerAddress: "",
+    sellerContact: "",
+    sellerWhatsApp: "",
   });
 
   useEffect(() => {
     if (!authLoading && !user) {
       toast.error("Please log in to sell");
       void navigate({ to: "/login" });
+    } else if (user) {
+      setForm(prev => ({ ...prev, sellerName: user.name || "" }));
     }
   }, [user, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    
+    // Validations
     if (!form.title || form.title.length < 3) {
       toast.error("Title too short");
       return;
@@ -69,14 +77,28 @@ function SellPage() {
       toast.error("Pick a category");
       return;
     }
+    if (form.images.length === 0) {
+      toast.error("At least one image is required");
+      return;
+    }
+    if (!form.sellerName || !form.sellerAddress || !form.sellerContact) {
+      toast.error("Please fill all mandatory seller details");
+      return;
+    }
+
+    // Phone validation
+    const phoneRegex = /^[0-9]{10,15}$/;
+    if (!phoneRegex.test(form.sellerContact.replace(/\+/g, ''))) {
+      toast.error("Invalid contact number (10-15 digits)");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const res = await productsAPI.createProduct({
-        title: form.title,
-        description: form.description,
+        ...form,
         price: price,
-        category: form.category,
-        images: form.imageUrl ? [form.imageUrl] : []
+        images: form.images
       });
       toast.success("Listing published!");
       void navigate({ to: "/product/$id", params: { id: res.data._id } });
@@ -87,118 +109,238 @@ function SellPage() {
     }
   };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    if (form.images.length + files.length > 5) {
+      toast.error("Maximum 5 images allowed");
+      return;
+    }
+
+    Array.from(files).forEach(file => {
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error(`${file.name} is too large (max 2MB)`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setForm(prev => ({ ...prev, images: [...prev.images, reader.result as string] }));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
-      <h1 className="text-2xl font-extrabold text-primary sm:text-3xl">Post your ad</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Be honest and add a clear photo. Your trust score depends on it.
-      </p>
+    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:py-20">
+      <div className="mb-12 text-center">
+        <h1 className="text-4xl font-black text-primary uppercase tracking-tighter sm:text-6xl lg:text-7xl">Launch your <span className="text-accent text-glow">Listing.</span></h1>
+        <p className="mt-4 text-sm font-bold uppercase tracking-[0.2em] text-primary/40 leading-relaxed">
+          Initialize global trade protocol. Add visual telemetry for maximum engagement.
+        </p>
+      </div>
 
       <form
         onSubmit={handleSubmit}
-        className="mt-6 space-y-5 rounded-2xl bg-surface p-5 shadow-[var(--shadow-card)] ring-1 ring-border sm:p-7"
+        className="space-y-12"
       >
-        <div>
-          <Label htmlFor="title">Title</Label>
-          <Input
-            id="title"
-            required
-            placeholder="iPhone 13, 128GB, mint condition"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            maxLength={120}
-          />
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="price">Price (₹)</Label>
+        {/* Product Details Section */}
+        <div className="card-3d space-y-8 rounded-[2.5rem] glass p-8 shadow-2xl ring-1 ring-primary/10 sm:p-12">
+          <div className="flex items-center gap-4 border-b border-primary/5 pb-6">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-accent text-lg font-black shadow-lg">1</span>
+            <h2 className="text-xl font-black text-primary uppercase tracking-tight">Product Telemetry</h2>
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="title" className="text-[10px] font-black uppercase tracking-widest text-primary/60 ml-1">Asset Nomenclature *</Label>
             <Input
-              id="price"
-              type="number"
-              min="0"
+              id="title"
               required
-              value={form.price}
-              onChange={(e) => setForm({ ...form, price: e.target.value })}
+              placeholder="e.g. iPhone 13 Pro, Neural Engine v2"
+              className="h-14 rounded-2xl bg-primary/5 border-none font-bold placeholder:text-primary/20"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              maxLength={120}
             />
           </div>
-          <div>
-            <Label htmlFor="category">Category</Label>
-            <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
-              <SelectTrigger id="category">
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
 
-        <div>
-          <Label htmlFor="description">Description</Label>
-          <Textarea
-            id="description"
-            required
-            rows={5}
-            placeholder="Condition, age, reason for selling, included accessories…"
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-            maxLength={2000}
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="imageUrl" className="flex items-center gap-1.5">
-            <ImageIcon size={14} /> Image URL (paste any photo URL — try Unsplash)
-          </Label>
-          <Input
-            id="imageUrl"
-            type="url"
-            placeholder="https://images.unsplash.com/..."
-            value={form.imageUrl}
-            onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-          />
-
-          <p className="mt-3 text-xs font-medium text-muted-foreground">Or pick a sample:</p>
-          <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
-            {SUGGESTED_IMAGES.map((url) => (
-              <button
-                type="button"
-                key={url}
-                onClick={() => setForm({ ...form, imageUrl: url })}
-                className={`overflow-hidden rounded-lg ring-2 transition ${
-                  form.imageUrl === url ? "ring-accent" : "ring-transparent hover:ring-border"
-                }`}
-              >
-                <img src={url} alt="" className="aspect-square w-full object-cover" loading="lazy" />
-              </button>
-            ))}
-          </div>
-
-          {form.image_url && (
-            <div className="mt-4 overflow-hidden rounded-lg border border-border">
-              <img
-                src={form.image_url}
-                alt="Preview"
-                className="max-h-64 w-full object-cover"
-                loading="lazy"
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="price" className="text-[10px] font-black uppercase tracking-widest text-primary/60 ml-1">Valuation (₹) *</Label>
+              <Input
+                id="price"
+                type="number"
+                min="0"
+                required
+                className="h-14 rounded-2xl bg-primary/5 border-none font-bold placeholder:text-primary/20"
+                value={form.price}
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
               />
             </div>
-          )}
+            <div className="space-y-2">
+              <Label htmlFor="category" className="text-[10px] font-black uppercase tracking-widest text-primary/60 ml-1">Sector *</Label>
+              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+                <SelectTrigger id="category" className="h-14 rounded-2xl bg-primary/5 border-none font-bold text-primary ring-0 focus:ring-0">
+                  <SelectValue placeholder="Select Sector" />
+                </SelectTrigger>
+                <SelectContent className="glass rounded-2xl border-primary/10">
+                  {CATEGORIES.map((c) => (
+                    <SelectItem key={c} value={c} className="font-bold text-primary/70 focus:bg-primary/5">
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="description" className="text-[10px] font-black uppercase tracking-widest text-primary/60 ml-1">Technical Briefing *</Label>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!form.title) {
+                    toast.error("Enter a title first");
+                    return;
+                  }
+                  toast.loading("Neural engine generating...");
+                  // Simulate AI generation
+                  setTimeout(() => {
+                    toast.dismiss();
+                    const aiDesc = `PREMIUM SPECIFICATION: This ${form.title} is in excellent condition. Verified performance metrics meet all standard protocols. Includes original neural peripherals and secure packaging. Minimal aesthetic wear, 100% operational integrity.`;
+                    setForm(prev => ({ ...prev, description: aiDesc }));
+                    toast.success("Description optimized");
+                  }, 1500);
+                }}
+                className="text-[10px] font-black uppercase tracking-widest text-accent hover:text-primary transition-colors flex items-center gap-1.5"
+              >
+                <Loader2 size={10} className="animate-spin group-hover:block hidden" />
+                ✨ AI Optimize
+              </button>
+            </div>
+            <Textarea
+              id="description"
+              required
+              rows={4}
+              placeholder="Operational history, condition parameters, included peripherals..."
+              className="rounded-2xl bg-primary/5 border-none font-bold placeholder:text-primary/20 p-6 min-h-[150px]"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              maxLength={2000}
+            />
+          </div>
+
+          <div className="space-y-4">
+            <Label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary/60 ml-1">
+              <ImageIcon size={14} /> Visual Telemetry * (max 5)
+            </Label>
+            
+            <div className="flex flex-wrap gap-4">
+              {form.images.map((img, idx) => (
+                <div key={idx} className="relative w-24 h-24 rounded-2xl overflow-hidden shadow-lg animate-float" style={{ animationDelay: `${idx * 0.2}s` }}>
+                  <img src={img} className="w-full h-full object-cover" alt={`Upload ${idx}`} />
+                  <button 
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }))}
+                    className="absolute top-1 right-1 bg-destructive/90 text-white w-6 h-6 flex items-center justify-center text-xs rounded-lg backdrop-blur-md"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {form.images.length < 5 && (
+                <button
+                  type="button"
+                  onClick={() => document.getElementById("file-upload")?.click()}
+                  className="w-24 h-24 rounded-2xl border-2 border-dashed border-primary/20 bg-primary/5 flex flex-col items-center justify-center text-primary/40 hover:border-accent hover:text-accent hover:bg-accent/5 transition-all"
+                >
+                  <Plus size={24} />
+                  <span className="text-[8px] font-black uppercase tracking-widest mt-2">Initialize</span>
+                </button>
+              )}
+            </div>
+            <input
+              id="file-upload"
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleImageUpload}
+            />
+          </div>
+        </div>
+
+        {/* Seller Details Section */}
+        <div className="card-3d space-y-8 rounded-[2.5rem] glass p-8 shadow-2xl ring-1 ring-primary/10 sm:p-12">
+          <div className="flex items-center gap-4 border-b border-primary/5 pb-6">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-accent text-lg font-black shadow-lg">2</span>
+            <h2 className="text-xl font-black text-primary uppercase tracking-tight">Operator Authentication</h2>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="sellerName" className="text-[10px] font-black uppercase tracking-widest text-primary/60 ml-1">Operator Signature *</Label>
+            <Input
+              id="sellerName"
+              required
+              placeholder="Your full legal nomenclature"
+              className="h-14 rounded-2xl bg-primary/5 border-none font-bold placeholder:text-primary/20"
+              value={form.sellerName}
+              onChange={(e) => setForm({ ...form, sellerName: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="sellerAddress" className="text-[10px] font-black uppercase tracking-widest text-primary/60 ml-1">Geospatial Coordinates *</Label>
+            <Textarea
+              id="sellerAddress"
+              required
+              rows={2}
+              placeholder="Sector, City, Grid ID, Postal Code"
+              className="rounded-2xl bg-primary/5 border-none font-bold placeholder:text-primary/20 p-6"
+              value={form.sellerAddress}
+              onChange={(e) => setForm({ ...form, sellerAddress: e.target.value })}
+            />
+          </div>
+
+          <div className="grid gap-6 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="sellerContact" className="text-[10px] font-black uppercase tracking-widest text-primary/60 ml-1">Primary Frequency *</Label>
+              <Input
+                id="sellerContact"
+                required
+                placeholder="+91 00000 00000"
+                className="h-14 rounded-2xl bg-primary/5 border-none font-bold placeholder:text-primary/20"
+                value={form.sellerContact}
+                onChange={(e) => setForm({ ...form, sellerContact: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sellerWhatsApp" className="text-[10px] font-black uppercase tracking-widest text-primary/60 ml-1">WhatsApp Uplink</Label>
+              <Input
+                id="sellerWhatsApp"
+                placeholder="Same as primary"
+                className="h-14 rounded-2xl bg-primary/5 border-none font-bold placeholder:text-primary/20"
+                value={form.sellerWhatsApp}
+                onChange={(e) => setForm({ ...form, sellerWhatsApp: e.target.value })}
+              />
+            </div>
+          </div>
         </div>
 
         <Button
           type="submit"
           disabled={submitting}
-          className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+          className="w-full h-20 rounded-[2rem] bg-primary text-accent text-xl font-black uppercase tracking-[0.2em] shadow-[0_20px_40px_-10px_oklch(0.45_0.15_260)] hover:scale-[1.02] active:scale-95 transition-all glow-effect"
         >
-          {submitting && <Loader2 size={16} className="mr-2 animate-spin" />}
-          Publish listing
+          {submitting ? (
+            <div className="flex items-center gap-3">
+              <Loader2 size={24} className="animate-spin" />
+              <span>Transmitting...</span>
+            </div>
+          ) : (
+            "Broadcast Listing"
+          )}
         </Button>
       </form>
     </div>
