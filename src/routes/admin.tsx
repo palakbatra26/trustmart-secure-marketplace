@@ -326,5 +326,3 @@ function AdminPage() {
     </div>
   );
 }
-  );
-}
