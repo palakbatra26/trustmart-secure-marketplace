@@ -190,6 +190,7 @@ function ProductDetailPage() {
   };
 
   return (
+<<<<<<< HEAD
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:py-16">
       {suspicious && listing.seller && (
         <div className="mb-8 flex items-start gap-4 rounded-3xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive backdrop-blur-xl animate-pulse ring-1 ring-destructive/10">
@@ -198,6 +199,17 @@ function ProductDetailPage() {
             <p className="font-black uppercase tracking-widest">High Risk Directive</p>
             <p className="font-bold opacity-80">
               Low trust index detected ({listing.seller.trustScore}). Neural verification failed.
+=======
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+      {suspicious && listing.seller && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-trust-low/40 bg-trust-low/10 p-3 text-sm text-trust-low">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+          <div>
+            <p className="font-bold">Suspicious user warning</p>
+            <p className="text-trust-low/80">
+              This seller has a low trust score ({listing.seller.trustScore}). Proceed with extra
+              caution.
+>>>>>>> 71507b528455b95acdf709c06a7c967fcb72628d
             </p>
           </div>
         </div>
@@ -214,6 +226,7 @@ function ProductDetailPage() {
             />
           </div>
 
+<<<<<<< HEAD
           <div className="rounded-[2.5rem] glass p-8 shadow-2xl ring-1 ring-primary/10 sm:p-12 space-y-8">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -221,6 +234,60 @@ function ProductDetailPage() {
                   {listing.category}
                 </span>
                 <span className="text-xs font-bold text-primary/40 uppercase tracking-widest">Added {new Date(listing.createdAt).toLocaleDateString()}</span>
+=======
+          <div className="mt-5 rounded-2xl bg-surface p-5 ring-1 ring-border sm:p-6">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {listing.category}
+            </span>
+            <h1 className="mt-1 text-2xl font-extrabold text-primary sm:text-3xl">{listing.title}</h1>
+            <p className="mt-2 text-3xl font-bold text-foreground">{formatPrice(listing.price)}</p>
+            
+            <div className="mt-6 flex flex-col gap-4 border-y py-4">
+              <div className="flex items-start gap-2">
+                <div className="mt-1 rounded-full bg-primary/10 p-1 text-primary">
+                  <Flag size={14} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Selling Location</p>
+                  <p className="text-sm font-medium">{listing.sellerAddress}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 whitespace-pre-wrap text-foreground/85">{listing.description}</div>
+          </div>
+
+          {/* Reviews */}
+          <div className="mt-5 rounded-2xl bg-surface p-5 ring-1 ring-border sm:p-6">
+            <h2 className="text-lg font-bold">Seller reviews</h2>
+            {reviews.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">No reviews yet.</p>
+            ) : (
+              <ul className="mt-3 space-y-3">
+                {reviews.map((r) => (
+                  <li key={r._id} className="rounded-lg border border-border p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold">{r.reviewer?.name ?? "Anonymous"}</span>
+                      <span className="flex items-center gap-0.5 text-trust-mid">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star
+                            key={i}
+                            size={14}
+                            className={i < r.rating ? "fill-current" : "opacity-30"}
+                          />
+                        ))}
+                      </span>
+                    </div>
+                    {r.feedback && <p className="mt-1 text-sm text-foreground/85">{r.feedback}</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {user && !isOwner && listing.seller && (
+              <div className="mt-4">
+                <ReviewForm sellerId={listing.seller._id} onDone={load} />
+>>>>>>> 71507b528455b95acdf709c06a7c967fcb72628d
               </div>
               <h1 className="text-4xl font-black text-primary leading-tight sm:text-5xl lg:text-6xl tracking-tighter uppercase">{listing.title}</h1>
               <p className="text-5xl font-black text-primary/90 text-glow tracking-tighter">{formatPrice(listing.price)}</p>
@@ -275,6 +342,7 @@ function ProductDetailPage() {
               </form>
             )}
 
+<<<<<<< HEAD
             <div className="mt-10 space-y-4">
               {loadingComments ? (
                 <div className="py-10 text-center"><Loader2 className="animate-spin mx-auto text-primary/20" /></div>
@@ -328,6 +396,116 @@ function ProductDetailPage() {
                   >
                     <ShoppingCart size={20} className="mr-3" />
                     Direct Call
+=======
+            {/* Comments list */}
+            {loadingComments ? (
+              <div className="mt-4 text-center text-muted-foreground">
+                <Loader2 className="animate-spin" />
+              </div>
+            ) : comments.length === 0 ? (
+              <p className="mt-4 text-sm text-muted-foreground">
+                No comments yet. Be the first to ask!
+              </p>
+            ) : (
+              <ul className="mt-4 space-y-3">
+                {comments.map((c) => (
+                  <li key={c._id} className="rounded-lg border border-border p-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="font-semibold text-sm">
+                          {c.user?.name ?? "Anonymous"}
+                        </span>
+                        <p className="mt-1 text-foreground/85">{c.content}</p>
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {new Date(c.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {user?.id === c.user?._id && (
+                        <button
+                          onClick={() => deleteComment(c._id)}
+                          className="rounded p-1 text-trust-low hover:bg-trust-low/10"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        {/* Sidebar */}
+        <aside className="space-y-4">
+          <div className="rounded-2xl bg-surface p-5 ring-1 ring-border">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Seller Information
+            </h3>
+            <div className="mt-3 flex items-center gap-3">
+              <span className="grid h-12 w-12 place-items-center rounded-full bg-primary text-lg font-bold text-primary-foreground">
+                {(listing.sellerName || listing.seller?.name || "U").charAt(0).toUpperCase()}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-foreground">
+                  {listing.sellerName || listing.seller?.name}
+                </p>
+                {listing.seller && <TrustBadge score={listing.seller.trustScore} size="sm" />}
+              </div>
+            </div>
+
+            {!isOwner && listing.status === "active" && (
+              <div className="mt-6 space-y-3">
+                <Button
+                  onClick={onCall}
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90 py-6"
+                >
+                  <ShoppingCart size={20} className="mr-2" />
+                  Call Seller ({listing.sellerContact})
+                </Button>
+                
+                <Button
+                  onClick={onWhatsApp}
+                  className="w-full bg-[var(--color-whatsapp)] text-white hover:bg-[var(--color-whatsapp)]/90 py-6"
+                >
+                  <MessageCircle size={20} className="mr-2" />
+                  Chat on WhatsApp
+                </Button>
+                
+                <p className="text-[10px] text-center text-muted-foreground">
+                  Always meet in a public place. Inspect item before paying.
+                </p>
+              </div>
+            )}
+
+            {listing.status === "sold" && (
+              <div className="mt-4 rounded-lg bg-muted p-3 text-center text-sm font-semibold text-muted-foreground">
+                This item has been sold
+              </div>
+            )}
+
+            {isOwner && (
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <Button
+                  onClick={() => navigate({ to: "/edit/$id", params: { id: listing._id } })}
+                  variant="outline"
+                >
+                  <Pencil size={16} className="mr-1.5" /> Edit
+                </Button>
+                <Button onClick={deleteListing} variant="destructive">
+                  <Trash2 size={16} className="mr-1.5" /> Delete
+                </Button>
+              </div>
+            )}
+
+            {user && !isOwner && listing.seller && (
+              <ReportDialog
+                reportedUserId={listing.seller._id}
+                listingId={listing._id}
+                trigger={
+                  <Button variant="ghost" className="mt-2 w-full text-trust-low hover:text-trust-low">
+                    <Flag size={16} className="mr-1.5" /> Report this listing
+>>>>>>> 71507b528455b95acdf709c06a7c967fcb72628d
                   </Button>
                   
                   <Button
