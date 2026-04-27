@@ -1,4 +1,4 @@
-# TrustMarket - MongoDB-Only Marketplace
+# TrustMarket -
 
 ## Overview
 Full-stack MERN marketplace with MongoDB Atlas, React + Tailwind frontend, and Express backend.
