@@ -248,7 +248,7 @@ function ProductDetailPage() {
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-primary/40">Transmission Details</h3>
+              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-primary/40">Product Description</h3>
               <div className="whitespace-pre-wrap text-lg font-medium leading-relaxed text-primary/80">{listing.description}</div>
             </div>
 
@@ -291,7 +291,7 @@ function ProductDetailPage() {
           <div className="rounded-[2.5rem] glass p-8 shadow-2xl ring-1 ring-primary/10 sm:p-12">
             <h2 className="text-2xl font-black text-primary uppercase tracking-tighter flex items-center gap-3">
               <MessageCircle size={28} className="text-accent" />
-              Intelligence Feed ({comments.length})
+              Comments ({comments.length})
             </h2>
 
             {user && (
@@ -341,7 +341,7 @@ function ProductDetailPage() {
         <aside className="lg:col-span-4 space-y-6">
           <div className="sticky top-28 space-y-6">
             <div className="rounded-[2.5rem] glass p-8 shadow-3d ring-1 ring-primary/10 animate-float">
-              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-primary/40 mb-6">Operator Credentials</h3>
+              <h3 className="text-xs font-black uppercase tracking-[0.2em] text-primary/40 mb-6">Seller Information</h3>
               <div className="flex items-center gap-4">
                 <div className="h-16 w-16 rounded-[1.25rem] bg-primary text-accent grid place-items-center text-2xl font-black shadow-xl ring-2 ring-accent/20">
                   {(listing.sellerName || listing.seller?.name || "U").charAt(0).toUpperCase()}
@@ -378,16 +378,16 @@ function ProductDetailPage() {
                 </div>
               )}
 
-              {isOwner && (
+              {(isOwner || profile?.isAdmin) && (
                 <div className="mt-8 grid grid-cols-2 gap-3">
                   <Button
                     onClick={() => navigate({ to: "/edit/$id", params: { id: listing._id } })}
                     className="h-12 rounded-xl glass font-black uppercase tracking-widest text-xs text-primary/70 hover:text-primary"
                   >
-                    <Pencil size={14} className="mr-2" /> Modify
+                    <Pencil size={14} className="mr-2" /> Edit
                   </Button>
                   <Button onClick={deleteListing} variant="destructive" className="h-12 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg">
-                    <Trash2 size={14} className="mr-2" /> Expunge
+                    <Trash2 size={14} className="mr-2" /> Delete
                   </Button>
                 </div>
               )}

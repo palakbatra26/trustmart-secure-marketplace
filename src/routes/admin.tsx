@@ -103,7 +103,7 @@ function AdminPage() {
     if (!confirm("DELETE ASSET: Proceed?")) return;
     try {
       await adminAPI.deleteProduct(listingId);
-      toast.success("Asset decommissioned");
+      toast.success("Product deleted successfully");
       void loadData();
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Operation failed");
@@ -128,7 +128,7 @@ function AdminPage() {
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:py-20">
       <div className="mb-12 flex flex-col sm:flex-row items-center justify-between gap-6">
         <div className="space-y-2 text-center sm:text-left">
-          <h1 className="text-4xl font-black text-primary uppercase tracking-tighter sm:text-5xl lg:text-6xl">Neural <span className="text-accent text-glow">Dashboard.</span></h1>
+          <h1 className="text-4xl font-black text-primary uppercase tracking-tighter sm:text-5xl lg:text-6xl">Admin <span className="text-accent text-glow">Dashboard.</span></h1>
           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary/30">Master Control Terminal v4.0.2</p>
         </div>
         <div className="flex gap-4">
@@ -151,7 +151,7 @@ function AdminPage() {
           }`}
         >
           <Users size={18} />
-          Operators ({users.length})
+          Users ({users.length})
         </button>
         <button
           onClick={() => setTab("products")}
@@ -160,7 +160,7 @@ function AdminPage() {
           }`}
         >
           <ShoppingBag size={18} />
-          Assets
+          Products
         </button>
         <button
           onClick={() => setTab("reports")}
@@ -169,7 +169,7 @@ function AdminPage() {
           }`}
         >
           <Flag size={18} />
-          Violation Logs
+          Reports
         </button>
       </div>
 

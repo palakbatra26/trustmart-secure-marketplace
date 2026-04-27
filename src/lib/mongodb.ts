@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -65,6 +65,14 @@ export const reviewsAPI = {
   getReviews: (sellerId: string) => api.get(`/reviews/seller/${sellerId}`),
   createReview: (data: { sellerId: string; rating: number; feedback?: string }) => 
     api.post('/reviews', data)
+};
+
+export const adminAPI = {
+  getUsers: () => api.get('/admin/users'),
+  getProducts: () => api.get('/admin/products'),
+  getReports: () => api.get('/admin/reports'),
+  deleteUser: (id: string) => api.delete(`/admin/users/${id}`),
+  deleteProduct: (id: string) => api.delete(`/products/${id}`)
 };
 
 export default api;

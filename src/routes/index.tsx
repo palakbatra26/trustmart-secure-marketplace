@@ -66,7 +66,7 @@ function HomePage() {
               <span className="text-accent text-glow">Absolute Trust.</span>
             </h1>
             <p className="mt-6 max-w-lg text-lg font-medium text-primary-foreground/70 leading-relaxed">
-              Experience India's first 3D-integrated secure marketplace. Every seller, every item, verified by our neural trust engine.
+              India's most secure marketplace. Every seller and every item is verified by our smart security system.
             </p>
             <div className="mt-10 flex flex-wrap gap-4">
               <Link
@@ -133,27 +133,26 @@ function HomePage() {
           </div>
         </div>
 
-        {/* Neural Trust Filter */}
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/40 ml-1">Neural Filter:</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/40 ml-1">Quick Filters:</span>
           <div className="flex gap-2 p-1 rounded-2xl glass ring-1 ring-primary/5">
             <button 
               className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-primary text-accent shadow-lg"
-              onClick={() => toast.success("Filter Optimized: Verified Only")}
+              onClick={() => toast.success("Showing Verified Sellers")}
             >
-              Verified Operators
+              Verified Sellers
             </button>
             <button 
               className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary hover:bg-primary/5 transition-all"
-              onClick={() => toast.success("Filter Optimized: High Trust Tier")}
+              onClick={() => toast.success("Showing High Trust Sellers")}
             >
-              Apex Trust (70+)
+              High Trust (70+)
             </button>
             <button 
               className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary hover:bg-primary/5 transition-all"
-              onClick={() => toast.info("Global Search Restored")}
+              onClick={() => toast.info("Showing All Products")}
             >
-              Global Feed
+              All Products
             </button>
           </div>
         </div>
@@ -182,11 +181,11 @@ function HomePage() {
             <div className="mx-auto mb-6 grid h-20 w-20 place-items-center rounded-3xl bg-primary/5 text-primary">
               <Sparkles size={32} />
             </div>
-            <p className="text-xl font-bold">No treasures found in this sector.</p>
+            <p className="text-xl font-bold">No products found here.</p>
             <p className="mt-2 text-sm text-muted-foreground">
               Be the first to{" "}
               <Link to="/sell" className="font-black text-primary underline underline-offset-4 decoration-accent">
-                Launch a Listing
+                Post a Product
               </Link>
               .
             </p>

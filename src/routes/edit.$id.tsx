@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { productsAPI } from "@/lib/mongodb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +23,8 @@ const schema = z.object({
   description: z.string().trim().min(10).max(2000),
   price: z.coerce.number().min(0).max(100000000),
   category: z.string().min(1),
-  image_url: z.string().url(),
+  images: z.array(z.string().url()).optional(),
+  imageUrl: z.string().url().optional(),
 });
 
 export const Route = createFileRoute("/edit/$id")({
@@ -32,7 +33,7 @@ export const Route = createFileRoute("/edit/$id")({
 
 function EditPage() {
   const { id } = Route.useParams();
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -41,7 +42,7 @@ function EditPage() {
     description: "",
     price: "",
     category: "",
-    image_url: "",
+    imageUrl: "",
   });
 
   useEffect(() => {
@@ -51,56 +52,53 @@ function EditPage() {
       return;
     }
     (async () => {
-      const { data, error } = await supabase
-        .from("listings")
-        .select("seller_id, title, description, price, category, image_url")
-        .eq("id", id)
-        .maybeSingle();
-      if (error || !data) {
-        toast.error("Listing not found");
+      try {
+        const res = await productsAPI.getProduct(id);
+        const data = res.data;
+        
+        // Allow if user is owner OR user is admin
+        const isOwner = data.seller?._id === user.id;
+        const isAdmin = profile?.isAdmin;
+
+        if (!isOwner && !isAdmin) {
+          toast.error("Unauthorized: Neural clearance insufficient");
+          void navigate({ to: "/product/$id", params: { id } });
+          return;
+        }
+
+        setForm({
+          title: data.title,
+          description: data.description,
+          price: String(data.price),
+          category: data.category,
+          imageUrl: data.imageUrl || (data.images?.[0] ?? ""),
+        });
+        setLoading(false);
+      } catch (error) {
+        toast.error("Listing not found in database");
         void navigate({ to: "/" });
-        return;
       }
-      if (data.seller_id !== user.id) {
-        toast.error("You can only edit your own listings");
-        void navigate({ to: "/product/$id", params: { id } });
-        return;
-      }
-      setForm({
-        title: data.title,
-        description: data.description,
-        price: String(data.price),
-        category: data.category,
-        image_url: data.image_url,
-      });
-      setLoading(false);
     })();
-  }, [id, user, authLoading, navigate]);
+  }, [id, user, profile, authLoading, navigate]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const parsed = schema.safeParse(form);
-    if (!parsed.success) {
-      toast.error(parsed.error.issues[0].message);
-      return;
-    }
     setSubmitting(true);
-    const { error } = await supabase
-      .from("listings")
-      .update({
-        title: parsed.data.title,
-        description: parsed.data.description,
-        price: parsed.data.price,
-        category: parsed.data.category,
-        image_url: parsed.data.image_url,
-      })
-      .eq("id", id);
-    setSubmitting(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Listing updated");
+    try {
+      await productsAPI.updateProduct(id, {
+        title: form.title,
+        description: form.description,
+        price: Number(form.price),
+        category: form.category,
+        imageUrl: form.imageUrl,
+        images: [form.imageUrl]
+      });
+      toast.success("Archive updated successfully");
       void navigate({ to: "/product/$id", params: { id } });
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Transmission failed");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -169,17 +167,17 @@ function EditPage() {
           />
         </div>
         <div>
-          <Label htmlFor="image_url">Image URL</Label>
+          <Label htmlFor="imageUrl">Image URL</Label>
           <Input
-            id="image_url"
+            id="imageUrl"
             type="url"
             required
-            value={form.image_url}
-            onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+            value={form.imageUrl}
+            onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
           />
-          {form.image_url && (
+          {form.imageUrl && (
             <img
-              src={form.image_url}
+              src={form.imageUrl}
               alt=""
               loading="lazy"
               className="mt-3 max-h-64 w-full rounded-lg object-cover"
