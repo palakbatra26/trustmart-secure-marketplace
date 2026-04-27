@@ -1,15 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
-const { generateToken } = require('../middleware/auth');
+const Product = require('../models/Product');
+const Report = require('../models/Report');
+const { protect, admin, generateToken } = require('../middleware/auth');
 
 router.post('/make-admin', async (req, res) => {
   try {
-    // Check if admin exists
     const existingAdmin = await User.findOne({ email: 'admin@trustmarket.com' });
     
     if (existingAdmin) {
-      // Just make sure isAdmin is true
       if (!existingAdmin.isAdmin) {
         existingAdmin.isAdmin = true;
         existingAdmin.trustScore = 100;
@@ -23,8 +23,7 @@ router.post('/make-admin', async (req, res) => {
       });
     }
 
-    // Create admin user
-    const admin = await User.create({
+    const adminUser = await User.create({
       name: 'Admin',
       email: 'admin@trustmarket.com',
       password: 'admin123',
@@ -33,7 +32,7 @@ router.post('/make-admin', async (req, res) => {
       reportCount: 0
     });
 
-    const token = generateToken(admin._id);
+    const token = generateToken(adminUser._id);
 
     res.json({ 
       message: 'Admin created successfully',
@@ -43,6 +42,53 @@ router.post('/make-admin', async (req, res) => {
     });
   } catch (error) {
     console.error('Admin setup error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET all users
+router.get('/users', protect, admin, async (req, res) => {
+  try {
+    const users = await User.find().select('-password').sort({ createdAt: -1 });
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET all products
+router.get('/products', protect, admin, async (req, res) => {
+  try {
+    const products = await Product.find().populate('seller', 'name email').sort({ createdAt: -1 });
+    res.json(products);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET all reports
+router.get('/reports', protect, admin, async (req, res) => {
+  try {
+    const reports = await Report.find()
+      .populate('reporterId', 'name')
+      .populate('reportedUserId', 'name')
+      .sort({ createdAt: -1 });
+    res.json(reports);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// DELETE user
+router.delete('/users/:id', protect, admin, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.isAdmin) return res.status(400).json({ message: 'Cannot delete admin' });
+    
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: 'User permanently expunged' });
+  } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });

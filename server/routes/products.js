@@ -97,12 +97,14 @@ router.delete('/:id', protect, async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: 'Product not found' });
+    
+    // Check if the user is the seller or an admin
     if (product.seller.toString() !== req.user._id.toString() && !req.user.isAdmin) {
-      return res.status(403).json({ message: 'Not authorized' });
+      return res.status(403).json({ message: 'Not authorized to delete this product' });
     }
-    product.status = 'removed';
-    await product.save();
-    res.json({ message: 'Product removed' });
+
+    await Product.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Product permanently deleted from database' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
