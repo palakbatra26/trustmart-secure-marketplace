@@ -31,10 +31,7 @@ VITE_API_URL=http://localhost:5000/api
 
 ### Backend (.env)
 ```
-MONGODB_URI=mongodb+srv://palakbatra79_db_user:TrustMarket@cluster0.47t6fhh.mongodb.net/trustmarket
-JWT_SECRET=your_secret_key_here
-PORT=5000
-```
+
 
 ## API Endpoints
 
