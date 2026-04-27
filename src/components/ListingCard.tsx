@@ -50,7 +50,7 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
         
         {listing.status === "sold" && (
           <span className="absolute left-4 top-4 rounded-xl bg-destructive/90 backdrop-blur-xl px-3 py-1.5 text-[8px] font-black tracking-[0.2em] text-white shadow-2xl ring-1 ring-white/20">
-            EXPIRED
+            SOLD
           </span>
         )}
         {listing.seller && (
@@ -73,7 +73,7 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
             <div className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
             {listing.seller && <span className="text-[10px] font-black uppercase tracking-widest text-primary/40 truncate max-w-[100px]">{listing.seller.name}</span>}
           </div>
-          <span className="text-[8px] font-black uppercase tracking-[0.1em] text-accent opacity-0 group-hover:opacity-100 transition-opacity">View Asset →</span>
+          <span className="text-[8px] font-black uppercase tracking-[0.1em] text-accent opacity-0 group-hover:opacity-100 transition-opacity">View Details →</span>
         </div>
       </div>
     </Link>

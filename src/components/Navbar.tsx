@@ -48,7 +48,7 @@ export function Navbar() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search premium treasures..."
+              placeholder="Search products..."
               className="w-full h-12 rounded-2xl border border-primary/10 bg-white/50 dark:bg-black/20 pl-12 pr-4 text-sm font-semibold outline-none placeholder:text-primary/30 focus:bg-white dark:focus:bg-black focus:ring-4 focus:ring-primary/5 transition-all shadow-inner"
             />
           </div>
@@ -81,16 +81,16 @@ export function Navbar() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-primary/5" />
                 <DropdownMenuItem onClick={() => navigate({ to: "/profile" })} className="rounded-xl p-3 font-bold text-primary/70 hover:text-primary">
-                  <User size={18} className="mr-3 text-accent" /> Account Intelligence
+                  <User size={18} className="mr-3 text-accent" /> My Profile
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate({ to: "/cart" })} className="rounded-xl p-3 font-bold text-primary/70 hover:text-primary">
-                  <ShoppingCart size={18} className="mr-3 text-accent" /> Secured Cart
+                  <ShoppingCart size={18} className="mr-3 text-accent" /> Shopping Cart
                 </DropdownMenuItem>
                 {profile?.isAdmin && (
                   <>
                     <DropdownMenuSeparator className="bg-primary/5" />
                     <DropdownMenuItem onClick={() => navigate({ to: "/admin" })} className="rounded-xl p-3 font-bold text-primary/70 hover:text-primary bg-primary/5">
-                      <LayoutDashboard size={18} className="mr-3 text-primary" /> Command Center
+                      <LayoutDashboard size={18} className="mr-3 text-primary" /> Admin Dashboard
                     </DropdownMenuItem>
                   </>
                 )}
@@ -103,7 +103,7 @@ export function Navbar() {
                     void navigate({ to: "/" });
                   }}
                 >
-                  <LogOut size={18} className="mr-3" /> Terminate Session
+                  <LogOut size={18} className="mr-3" /> Logout
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -113,7 +113,7 @@ export function Navbar() {
               onClick={() => navigate({ to: "/login" })}
               className="h-12 px-6 rounded-2xl font-black uppercase tracking-widest text-primary hover:bg-primary/5"
             >
-              Identify
+              Login
             </Button>
           )}
 
@@ -122,7 +122,7 @@ export function Navbar() {
             className="hidden sm:inline-flex h-12 items-center gap-2 rounded-2xl bg-primary px-6 text-xs font-black uppercase tracking-[0.2em] text-accent shadow-xl hover:scale-105 active:scale-95 transition-all"
           >
             <Plus size={18} strokeWidth={3} />
-            <span>Marketplace</span>
+            <span>Sell Product</span>
           </Link>
         </div>
       </div>
