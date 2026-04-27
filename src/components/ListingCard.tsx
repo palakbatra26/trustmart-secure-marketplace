@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { TrustBadge } from "@/components/TrustBadge";
 import { formatPrice } from "@/lib/trust";
+import { ShoppingBag } from "lucide-react";
 
 export interface ListingCardData {
   id?: string;
@@ -30,11 +31,7 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
     <Link
       to="/product/$id"
       params={{ id: listingId || "" }}
-<<<<<<< HEAD
       className="card-3d group block overflow-hidden rounded-[2rem] glass ring-1 ring-primary/5 hover:ring-primary/20 transition-all hover:shadow-[0_40px_80px_-20px_oklch(0.45_0.15_260_/_0.2)]"
-=======
-      className="group block overflow-hidden rounded-xl bg-surface ring-1 ring-border transition hover:ring-accent/60 hover:shadow-[var(--shadow-elevated)]"
->>>>>>> 71507b528455b95acdf709c06a7c967fcb72628d
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-primary/5">
         {imageUrl ? (
@@ -57,11 +54,7 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
           </span>
         )}
         {listing.seller && (
-<<<<<<< HEAD
           <div className="absolute right-4 top-4 translate-z-30 group-hover:scale-110 transition-transform">
-=======
-          <div className="absolute right-2 top-2">
->>>>>>> 71507b528455b95acdf709c06a7c967fcb72628d
             <TrustBadge score={listing.seller.trustScore ?? listing.seller.trust_score} size="sm" showLabel={false} />
           </div>
         )}
